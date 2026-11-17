@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react"
 import { useFrame } from "@react-three/fiber"
 import { CanvasTexture, Color, DoubleSide, FrontSide, MeshStandardMaterial, type Group, type Object3D } from "three"
-import { AVATAR_LAYER, UNDERWEAR_COLOR, heightMeters, type Character } from "@/lib/avatar"
+import { AVATAR_LAYER, OUTFIT, heightMeters, type Character } from "@/lib/avatar"
 import { CANONICAL_HEIGHT, buildParts, type MaterialKey } from "@/lib/avatar-geometry"
 import type { Vec3 } from "@/lib/scene"
 
@@ -25,12 +25,6 @@ function shadowTexture() {
     ctx.fillRect(0, 0, 128, 128)
   }
   return new CanvasTexture(canvas)
-}
-
-function soleColor(shoes: string) {
-  const value = parseInt(shoes.slice(1), 16)
-  const luma = ((value >> 16) & 255) * 0.3 + ((value >> 8) & 255) * 0.59 + (value & 255) * 0.11
-  return luma < 90 ? "#2a2a2c" : "#f3f1ea"
 }
 
 const LIPS = new Color("#a8574f")
@@ -62,12 +56,9 @@ export function Avatar({
 }) {
   const root = useRef<Group>(null)
   const turn = useRef(0)
-  const { sex, hair, top, bottom, shoes, outer, underwear } = character
+  const { sex, hair } = character
 
-  const parts = useMemo(
-    () => buildParts({ sex, hair, top, bottom, shoes, outer, underwear }),
-    [sex, hair, top, bottom, shoes, outer, underwear],
-  )
+  const parts = useMemo(() => buildParts({ sex, hair }), [sex, hair])
 
   useEffect(() => () => parts.forEach((part) => part.geometry.dispose()), [parts])
 
@@ -86,14 +77,10 @@ export function Avatar({
     const map: Record<MaterialKey, MeshStandardMaterial> = {
       skin: new MeshStandardMaterial({ roughness: 0.52, metalness: 0, side: FrontSide }),
       hair: cloth(0.62, -2, -8, true),
-      underwear: cloth(0.8, -1, -4),
       bottom: cloth(0.82, 0, -4),
       shoes: cloth(0.5, -1, -4),
       sole: cloth(0.7, -1, -8),
       top: cloth(0.86, 0, -12),
-      trim: cloth(0.86, 0, -16, true),
-      outer: cloth(0.78, 0, -24, true),
-      button: cloth(0.35, -1, -32),
       brow: cloth(0.8, -1, -12),
       eyeWhite: cloth(0.3, -1, -8),
       iris: cloth(0.2, -1, -16),
@@ -110,13 +97,11 @@ export function Avatar({
   useEffect(() => {
     materials.skin.color.set(character.skin)
     materials.hair.color.set(character.hairColor)
-    materials.top.color.set(character.topColor)
-    materials.trim.color.set(character.topColor)
-    materials.bottom.color.set(character.bottomColor)
-    materials.shoes.color.set(character.shoesColor)
-    materials.sole.color.set(soleColor(character.shoesColor))
-    materials.outer.color.set(character.outerColor)
-    materials.underwear.color.set(UNDERWEAR_COLOR)
+    const outfit = OUTFIT[character.sex]
+    materials.top.color.set(outfit.top)
+    materials.bottom.color.set(outfit.bottom)
+    materials.shoes.color.set(outfit.shoes)
+    materials.sole.color.set(outfit.sole)
     materials.brow.color.set(character.hairColor).lerp(BROW_SHADE, 0.35)
     materials.lips.color.set(character.skin).lerp(LIPS, 0.55)
   }, [character, materials])

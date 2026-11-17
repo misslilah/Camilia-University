@@ -1,9 +1,5 @@
 export type Sex = "man" | "woman"
 export type Hair = "short" | "crop" | "medium" | "bob" | "long" | "bun" | "ponytail"
-export type Top = "tee" | "longsleeve" | "knit" | "shirt" | "tank"
-export type Bottom = "jeans" | "chinos" | "wide" | "shorts" | "skirt"
-export type Shoes = "sneakers" | "loafers" | "boots"
-export type Outer = "none" | "jacket" | "cardigan" | "coat"
 
 export type Character = {
   sex: Sex
@@ -11,15 +7,6 @@ export type Character = {
   skin: string
   hair: Hair
   hairColor: string
-  top: Top
-  topColor: string
-  bottom: Bottom
-  bottomColor: string
-  shoes: Shoes
-  shoesColor: string
-  outer: Outer
-  outerColor: string
-  underwear: boolean
 }
 
 export type Option<T extends string> = { id: T; label: string }
@@ -60,106 +47,15 @@ export const HAIR_COLORS: Swatch[] = [
   { color: "#a9a49d", label: "Grey" },
 ]
 
-export const TOPS: Option<Top>[] = [
-  { id: "tee", label: "T-shirt" },
-  { id: "longsleeve", label: "Long sleeve" },
-  { id: "knit", label: "Knit sweater" },
-  { id: "shirt", label: "Shirt" },
-  { id: "tank", label: "Tank top" },
-]
-
-export const BOTTOMS: Option<Bottom>[] = [
-  { id: "jeans", label: "Straight jeans" },
-  { id: "chinos", label: "Chinos" },
-  { id: "wide", label: "Wide trousers" },
-  { id: "shorts", label: "Shorts" },
-  { id: "skirt", label: "Midi skirt" },
-]
-
-export const SHOES: Option<Shoes>[] = [
-  { id: "sneakers", label: "Sneakers" },
-  { id: "loafers", label: "Loafers" },
-  { id: "boots", label: "Boots" },
-]
-
-export const OUTERS: Option<Outer>[] = [
-  { id: "none", label: "None" },
-  { id: "jacket", label: "Jacket" },
-  { id: "cardigan", label: "Cardigan" },
-  { id: "coat", label: "Long coat" },
-]
-
-export const TOP_COLORS: Swatch[] = [
-  { color: "#eeece6", label: "White" },
-  { color: "#9c9d9f", label: "Heather grey" },
-  { color: "#202024", label: "Black" },
-  { color: "#26334a", label: "Navy" },
-  { color: "#8b9a7c", label: "Sage" },
-  { color: "#d9c9ae", label: "Oatmeal" },
-  { color: "#6f2534", label: "Burgundy" },
-  { color: "#6d8fb5", label: "Sky blue" },
-]
-
-export const BOTTOM_COLORS: Swatch[] = [
-  { color: "#28334d", label: "Dark indigo" },
-  { color: "#56729b", label: "Mid blue" },
-  { color: "#1e1f23", label: "Black" },
-  { color: "#c3b59b", label: "Stone" },
-  { color: "#5f6247", label: "Olive" },
-  { color: "#77787d", label: "Grey" },
-]
-
-export const SHOE_COLORS: Swatch[] = [
-  { color: "#f1f0eb", label: "White" },
-  { color: "#1d1d20", label: "Black" },
-  { color: "#9c6d45", label: "Tan" },
-  { color: "#2a3550", label: "Navy" },
-]
-
-export const OUTER_COLORS: Swatch[] = [
-  { color: "#b0875a", label: "Camel" },
-  { color: "#1f2024", label: "Black" },
-  { color: "#27324a", label: "Navy" },
-  { color: "#5c6146", label: "Olive" },
-  { color: "#5d7598", label: "Denim" },
-  { color: "#e4dac6", label: "Cream" },
-]
-
-export const UNDERWEAR_COLOR = "#45474e"
+// Everyone wears the same plain clothes; only the body is customised.
+export const OUTFIT: Record<Sex, { top: string; bottom: string; shoes: string; sole: string }> = {
+  man: { top: "#9c9d9f", bottom: "#28334d", shoes: "#f1f0eb", sole: "#f3f1ea" },
+  woman: { top: "#eeece6", bottom: "#56729b", shoes: "#f1f0eb", sole: "#f3f1ea" },
+}
 
 const BASE: Record<Sex, Character> = {
-  man: {
-    sex: "man",
-    height: 0.5,
-    skin: SKIN[1].color,
-    hair: "short",
-    hairColor: HAIR_COLORS[1].color,
-    top: "tee",
-    topColor: TOP_COLORS[1].color,
-    bottom: "jeans",
-    bottomColor: BOTTOM_COLORS[0].color,
-    shoes: "sneakers",
-    shoesColor: SHOE_COLORS[0].color,
-    outer: "none",
-    outerColor: OUTER_COLORS[0].color,
-    underwear: false,
-  },
-  woman: {
-    sex: "woman",
-    height: 0.5,
-    skin: SKIN[1].color,
-    hair: "long",
-    hairColor: HAIR_COLORS[2].color,
-    top: "tee",
-    topColor: TOP_COLORS[0].color,
-    bottom: "jeans",
-    bottomColor: BOTTOM_COLORS[1].color,
-    shoes: "sneakers",
-    shoesColor: SHOE_COLORS[0].color,
-    outer: "none",
-    outerColor: OUTER_COLORS[0].color,
-    underwear: false,
-  },
+  man: { sex: "man", height: 0.5, skin: SKIN[1].color, hair: "short", hairColor: HAIR_COLORS[1].color },
+  woman: { sex: "woman", height: 0.5, skin: SKIN[1].color, hair: "long", hairColor: HAIR_COLORS[2].color },
 }
 
 export function baseCharacter(sex: Sex): Character {
@@ -168,30 +64,9 @@ export function baseCharacter(sex: Sex): Character {
 
 export const SEX_LABEL: Record<Sex, string> = { man: "Men", woman: "Women" }
 
-export function baseOutfit(character: Character): Character {
-  const base = BASE[character.sex]
-  return {
-    ...character,
-    top: base.top,
-    topColor: base.topColor,
-    bottom: base.bottom,
-    bottomColor: base.bottomColor,
-    shoes: base.shoes,
-    shoesColor: base.shoesColor,
-    outer: base.outer,
-    outerColor: base.outerColor,
-    underwear: false,
-  }
-}
-
 export function switchSex(character: Character, sex: Sex): Character {
   if (character.sex === sex) return character
-  return {
-    ...baseCharacter(sex),
-    height: character.height,
-    skin: character.skin,
-    underwear: character.underwear,
-  }
+  return { ...baseCharacter(sex), height: character.height, skin: character.skin }
 }
 
 export function heightMeters(character: Character) {
@@ -216,6 +91,7 @@ function unit(value: unknown, fallback: number) {
 export type Saved = { character: Character; created: boolean }
 
 // Saves from before the creation step have no flag; they were already made.
+// Fields from older versions (outfit, underwear, body sliders) are dropped.
 export function loadCharacter(): Saved | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
@@ -229,15 +105,6 @@ export function loadCharacter(): Saved | null {
       skin: color(data.skin, base.skin),
       hair: oneOf(data.hair, HAIR, base.hair),
       hairColor: color(data.hairColor, base.hairColor),
-      top: oneOf(data.top, TOPS, base.top),
-      topColor: color(data.topColor, base.topColor),
-      bottom: oneOf(data.bottom, BOTTOMS, base.bottom),
-      bottomColor: color(data.bottomColor, base.bottomColor),
-      shoes: oneOf(data.shoes, SHOES, base.shoes),
-      shoesColor: color(data.shoesColor, base.shoesColor),
-      outer: oneOf(data.outer, OUTERS, base.outer),
-      outerColor: color(data.outerColor, base.outerColor),
-      underwear: data.underwear === true,
     }
     return { character, created: data.created !== false }
   } catch {
@@ -247,7 +114,8 @@ export function loadCharacter(): Saved | null {
 
 export function saveCharacter(character: Character) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...character, created: true }))
+    const { sex, height, skin, hair, hairColor } = character
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ sex, height, skin, hair, hairColor, created: true }))
   } catch {
     // Storage can be blocked; the character still lasts for this visit.
   }

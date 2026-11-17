@@ -4,22 +4,11 @@ import type { ReactNode } from "react"
 import { ArrowLeft, RotateCcw, RotateCw, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
-import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  BOTTOMS,
-  BOTTOM_COLORS,
   HAIR,
   HAIR_COLORS,
-  OUTERS,
-  OUTER_COLORS,
-  SHOES,
-  SHOE_COLORS,
   SKIN,
-  TOPS,
-  TOP_COLORS,
   SEX_LABEL,
-  baseOutfit,
   heightMeters,
   switchSex,
   type Character,
@@ -46,7 +35,7 @@ export function WardrobePanel({
   character: Character | null
   created: boolean
   onChoose: (sex: Sex) => void
-  onChange: (next: Character, discrete: boolean) => void
+  onChange: (next: Character) => void
   onCreate: () => void
   onDone: () => void
   onTurn: (step: number) => void
@@ -90,7 +79,7 @@ export function WardrobePanel({
       </div>
 
       <aside
-        aria-label="Wardrobe"
+        aria-label="Your character"
         aria-hidden={!open}
         inert={!open}
         data-wardrobe-panel
@@ -106,7 +95,7 @@ export function WardrobePanel({
         <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-3">
           <div>
             <p className="text-[10px] tracking-[0.32em] text-[#f3ead7]/60">{created ? "BEDROOM" : "NEW CHARACTER"}</p>
-            <h2 className="font-serif text-2xl leading-tight">{created ? "Wardrobe" : "Create your character"}</h2>
+            <h2 className="font-serif text-2xl leading-tight">{created ? "Your character" : "Create your character"}</h2>
           </div>
           <button
             type="button"
@@ -118,12 +107,10 @@ export function WardrobePanel({
           </button>
         </div>
 
-        {!character ? (
-          <Chooser onChoose={onChoose} />
-        ) : created ? (
-          <Dresser character={character} onChange={onChange} onDone={onDone} />
+        {character ? (
+          <Editor character={character} created={created} onChange={onChange} onCreate={onCreate} onDone={onDone} />
         ) : (
-          <Creator character={character} onChange={onChange} onCreate={onCreate} />
+          <Chooser onChoose={onChoose} />
         )}
       </aside>
     </>
@@ -137,7 +124,7 @@ function Chooser({ onChoose }: { onChoose: (sex: Sex) => void }) {
       <div>
         <p className="font-serif text-xl">Who is in the mirror?</p>
         <p className="mt-1 text-sm text-[#f3ead7]/70">
-          Pick a body, then set height, skin tone and hair. Clothes come once your character is created.
+          Pick a body, then set height, skin tone and hair.
         </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -182,10 +169,9 @@ function BodyFields({
   onChange,
 }: {
   character: Character
-  onChange: (next: Character, discrete: boolean) => void
+  onChange: (next: Character) => void
 }) {
-  const set = <K extends keyof Character>(key: K, value: Character[K], discrete = true) =>
-    onChange({ ...character, [key]: value }, discrete)
+  const set = <K extends keyof Character>(key: K, value: Character[K]) => onChange({ ...character, [key]: value })
   return (
     <div className="flex flex-col gap-5">
       <Section title="Body">
@@ -195,7 +181,7 @@ function BodyFields({
               key={sex}
               type="button"
               aria-pressed={character.sex === sex}
-              onClick={() => onChange(switchSex(character, sex), true)}
+              onClick={() => onChange(switchSex(character, sex))}
               className={cn(
                 "h-8 rounded-full text-sm transition-colors",
                 character.sex === sex ? "bg-[#f3ead7] text-[#2a1c14]" : "text-[#f6f0e6]/80 hover:bg-white/10",
@@ -210,7 +196,7 @@ function BodyFields({
         label="Height"
         value={character.height}
         display={`${Math.round(heightMeters(character) * 100)} cm`}
-        onChange={(value) => set("height", value, false)}
+        onChange={(value) => set("height", value)}
       />
       <Section title="Skin tone">
         <Swatches options={SKIN} value={character.skin} onPick={(color) => set("skin", color)} />
@@ -226,14 +212,18 @@ function BodyFields({
 const scroller =
   "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 [scrollbar-color:rgba(243,234,215,0.25)_transparent]"
 
-function Creator({
+function Editor({
   character,
+  created,
   onChange,
   onCreate,
+  onDone,
 }: {
   character: Character
-  onChange: (next: Character, discrete: boolean) => void
+  created: boolean
+  onChange: (next: Character) => void
   onCreate: () => void
+  onDone: () => void
 }) {
   return (
     <>
@@ -241,82 +231,15 @@ function Creator({
         <BodyFields character={character} onChange={onChange} />
       </div>
       <div className="flex flex-col gap-2 border-t border-[#f3ead7]/12 px-5 py-3">
-        <p className="text-xs text-[#f3ead7]/60">Your character starts in the base outfit. You can dress them next.</p>
-        <Button className="h-10 w-full rounded-full" onClick={onCreate}>
-          Create character
-        </Button>
-      </div>
-    </>
-  )
-}
-
-function Dresser({
-  character,
-  onChange,
-  onDone,
-}: {
-  character: Character
-  onChange: (next: Character, discrete: boolean) => void
-  onDone: () => void
-}) {
-  const set = <K extends keyof Character>(key: K, value: Character[K], discrete = true) =>
-    onChange({ ...character, [key]: value }, discrete)
-  const dressed = !character.underwear
-  return (
-    <>
-      <Tabs defaultValue="clothes" className="min-h-0 flex-1 gap-0">
-        <div className="px-5 pb-3">
-          <TabsList>
-            <TabsTrigger value="clothes">Clothes</TabsTrigger>
-            <TabsTrigger value="body">Edit character</TabsTrigger>
-          </TabsList>
-        </div>
-        <div className={scroller}>
-          <TabsContent value="clothes" className="flex flex-col gap-5">
-            <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-[#f3ead7]/15 bg-[#f3ead7]/5 px-4 py-3">
-              <span>
-                <span className="block text-sm font-medium">Underwear only</span>
-                <span className="block text-xs text-[#f3ead7]/60">Base body in plain underwear</span>
-              </span>
-              <Switch checked={character.underwear} onCheckedChange={(checked) => set("underwear", checked)} />
-            </label>
-            <div className={cn("flex flex-col gap-5 transition-opacity", dressed ? "opacity-100" : "opacity-45")}>
-              <Section title="Top">
-                <Chips options={TOPS} value={character.top} onPick={(id) => onChange({ ...character, top: id, underwear: false }, true)} />
-                <Swatches options={TOP_COLORS} value={character.topColor} onPick={(color) => onChange({ ...character, topColor: color, underwear: false }, true)} />
-              </Section>
-              <Section title="Bottom">
-                <Chips options={BOTTOMS} value={character.bottom} onPick={(id) => onChange({ ...character, bottom: id, underwear: false }, true)} />
-                <Swatches options={BOTTOM_COLORS} value={character.bottomColor} onPick={(color) => onChange({ ...character, bottomColor: color, underwear: false }, true)} />
-              </Section>
-              <Section title="Shoes">
-                <Chips options={SHOES} value={character.shoes} onPick={(id) => onChange({ ...character, shoes: id, underwear: false }, true)} />
-                <Swatches options={SHOE_COLORS} value={character.shoesColor} onPick={(color) => onChange({ ...character, shoesColor: color, underwear: false }, true)} />
-              </Section>
-              <Section title="Outerwear">
-                <Chips options={OUTERS} value={character.outer} onPick={(id) => onChange({ ...character, outer: id, underwear: false }, true)} />
-                {character.outer !== "none" && (
-                  <Swatches options={OUTER_COLORS} value={character.outerColor} onPick={(color) => onChange({ ...character, outerColor: color, underwear: false }, true)} />
-                )}
-              </Section>
-            </div>
-          </TabsContent>
-          <TabsContent value="body">
-            <BodyFields character={character} onChange={onChange} />
-          </TabsContent>
-        </div>
-      </Tabs>
-      <div className="flex items-center gap-2 border-t border-[#f3ead7]/12 px-5 py-3">
-        <Button
-          variant="ghost"
-          className="rounded-full text-[#f3ead7]/85 hover:bg-white/10 hover:text-[#f6f0e6]"
-          onClick={() => onChange(baseOutfit(character), true)}
-        >
-          Reset to base outfit
-        </Button>
-        <Button className="ml-auto rounded-full px-6" onClick={onDone}>
-          Done
-        </Button>
+        {created ? (
+          <Button className="h-10 w-full rounded-full" onClick={onDone}>
+            Done
+          </Button>
+        ) : (
+          <Button className="h-10 w-full rounded-full" onClick={onCreate}>
+            Create character
+          </Button>
+        )}
       </div>
     </>
   )

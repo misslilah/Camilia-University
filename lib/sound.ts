@@ -516,21 +516,6 @@ class HallSound {
     ])
   }
 
-  clothes() {
-    this.variant = (this.variant + 1) % 997
-    this.play([
-      {
-        clip: this.variant % 2 ? "cloth-a" : "cloth-b",
-        at: 0,
-        gain: 0.16,
-        pan: 0.2,
-        wet: 0.03,
-        rate: 1.05 + (this.variant % 5) * 0.03,
-        length: 0.45,
-      },
-    ])
-  }
-
   hallReturn() {
     this.silence(this.playing)
     this.play([

@@ -141,10 +141,9 @@ export default function Experience() {
 
   // A character being created stays a draft until it is confirmed.
   const updateCharacter = useCallback(
-    (next: Character, discrete: boolean) => {
+    (next: Character) => {
       setCharacter(next)
       if (created) saveCharacter(next)
-      if (discrete) sound.clothes()
     },
     [created],
   )
@@ -153,11 +152,10 @@ export default function Experience() {
     if (!character) return
     saveCharacter(character)
     setCreated(true)
-    sound.clothes()
   }, [character])
 
   const chooseBody = useCallback(
-    (sex: Sex) => updateCharacter(baseCharacter(sex), true),
+    (sex: Sex) => updateCharacter(baseCharacter(sex)),
     [updateCharacter],
   )
 
