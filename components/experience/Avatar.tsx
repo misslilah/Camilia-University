@@ -147,9 +147,12 @@ export function Avatar({
         <meshBasicMaterial map={shadow} transparent depthWrite={false} />
       </mesh>
       <group ref={root} scale={scale} rotation={[0, facing, 0]}>
-        {parts.map((part, index) => (
+        {/* Keyed by geometry so a rebuilt outfit mounts fresh meshes: reusing one
+            by index would keep the position and blink scale of whatever part it
+            showed before. */}
+        {parts.map((part) => (
           <mesh
-            key={index}
+            key={part.geometry.uuid}
             ref={onAvatarLayer}
             userData={{ blink: part.blink === true }}
             position={part.position}
