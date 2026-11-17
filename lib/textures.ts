@@ -239,16 +239,17 @@ function drawDesktop(ctx: CanvasRenderingContext2D) {
   ctx.font = "9px sans-serif"
   ctx.fillText("U N I V E R S I T Y", cx, cy + 48)
 
-  const tints = [
-    ["#e8b04a", "#c98a24"],
-    ["#7f5bd6", "#5435a8"],
-    ["#4c8df0", "#2a5fc4"],
-    ["#4ac17a", "#2b8d55"],
-    ["#8b93a3", "#5d6575"],
+  const icons: { a: string; b: string; col: number; row: number; letter?: string }[] = [
+    { a: "#e8b04a", b: "#c98a24", col: 0, row: 0 },
+    { a: "#7f5bd6", b: "#5435a8", col: 0, row: 1 },
+    { a: "#4c8df0", b: "#2a5fc4", col: 0, row: 2 },
+    { a: "#4ac17a", b: "#2b8d55", col: 0, row: 3 },
+    { a: "#8b93a3", b: "#5d6575", col: 0, row: 4 },
+    { a: "#ff8f6b", b: "#e25b32", col: 1, row: 0, letter: "P" },
   ]
-  tints.forEach(([a, b], i) => {
-    const x = 28
-    const y = 20 + i * 84
+  icons.forEach(({ a, b, col, row, letter }) => {
+    const x = 28 + col * 78
+    const y = 20 + row * 84
     const tile = ctx.createLinearGradient(x, y, x + 41, y + 41)
     tile.addColorStop(0, a)
     tile.addColorStop(1, b)
@@ -256,6 +257,13 @@ function drawDesktop(ctx: CanvasRenderingContext2D) {
     ctx.beginPath()
     ctx.roundRect(x, y, 41, 41, 12)
     ctx.fill()
+    if (letter) {
+      ctx.fillStyle = "#ffffff"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.font = "700 22px sans-serif"
+      ctx.fillText(letter, x + 20.5, y + 22)
+    }
     ctx.fillStyle = "rgba(255,255,255,0.75)"
     ctx.fillRect(x + 4, y + 50, 33, 5)
   })

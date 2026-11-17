@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType, type PointerEvent as ReactPointerEvent } from "react"
 import {
   ArrowLeft,
   Folder,
@@ -19,23 +19,39 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { Browser } from "@/components/experience/browser/Browser"
+import { Patreon, PatreonMark } from "@/components/experience/Patreon"
 import { Button } from "@/components/ui/button"
 import { PANEL_BREAKPOINT } from "@/lib/scene"
 import { useScreenRect, type ScreenRect } from "@/lib/screen-rect"
 import { sound } from "@/lib/sound"
 import { cn } from "@/lib/utils"
 
-type AppId = "files" | "courses" | "browser" | "notes" | "trash"
+type AppId = "files" | "courses" | "browser" | "notes" | "trash" | "patreon"
+type AppIcon = LucideIcon | ComponentType<{ className?: string; strokeWidth?: number }>
 
-const APPS: { id: AppId; name: string; icon: LucideIcon; tint: string }[] = [
+const APPS: { id: AppId; name: string; icon: AppIcon; tint: string }[] = [
   { id: "files", name: "My Files", icon: Folder, tint: "from-[#e8b04a] to-[#c98a24]" },
   { id: "courses", name: "Courses", icon: GraduationCap, tint: "from-[#7f5bd6] to-[#5435a8]" },
   { id: "browser", name: "Browser", icon: Globe, tint: "from-[#4c8df0] to-[#2a5fc4]" },
   { id: "notes", name: "Notes", icon: NotebookPen, tint: "from-[#4ac17a] to-[#2b8d55]" },
   { id: "trash", name: "Trash", icon: Trash2, tint: "from-[#8b93a3] to-[#5d6575]" },
+  { id: "patreon", name: "Patreon", icon: PatreonMark, tint: "from-[#ff8f6b] to-[#e25b32]" },
 ]
 
+const INITIAL_CELLS: Record<AppId, Cell> = {
+  files: { col: 0, row: 0 },
+  courses: { col: 0, row: 1 },
+  browser: { col: 0, row: 2 },
+  notes: { col: 0, row: 3 },
+  trash: { col: 0, row: 4 },
+  patreon: { col: 1, row: 0 },
+}
+
 const app = (id: AppId) => APPS.find((item) => item.id === id) ?? APPS[0]
+
+function isWorkspace(id: AppId) {
+  return id === "browser" || id === "patreon"
+}
 
 const TASKBAR = 48
 const CELL = { w: 92, h: 98, pad: 14 }
@@ -135,9 +151,7 @@ export function ComputerDesktop({ open, onLeave }: { open: boolean; onLeave: () 
 
 function Desktop({ active, scale, onLeave }: { active: boolean; scale: number; onLeave: () => void }) {
   const area = useRef<HTMLDivElement>(null)
-  const [cells, setCells] = useState<Record<AppId, Cell>>(() =>
-    Object.fromEntries(APPS.map((item, row) => [item.id, { col: 0, row }])) as Record<AppId, Cell>,
-  )
+  const [cells, setCells] = useState<Record<AppId, Cell>>(INITIAL_CELLS)
   const [selected, setSelected] = useState<AppId | null>(null)
   const [windows, setWindows] = useState<Win[]>([])
   const [menu, setMenu] = useState(false)
@@ -173,9 +187,10 @@ function Desktop({ active, scale, onLeave }: { active: boolean; scale: number; o
       }
       const { w, h } = size()
       const n = list.length
-      if (id === "browser") {
-        const width = Math.min(980, w - 40)
-        const height = Math.min(660, h - 32)
+      if (isWorkspace(id)) {
+        const preferred = id === "browser" ? { w: 980, h: 660 } : { w: 720, h: 540 }
+        const width = Math.min(preferred.w, w - 40)
+        const height = Math.min(preferred.h, h - 32)
         const x = Math.max(12, (w - width) / 2 + n * 18)
         const y = Math.max(8, (h - height) / 2 + n * 14)
         return [...list, { app: id, x, y, w: width, h: height, z, minimized: false, maximized: w < 640 }]
@@ -407,12 +422,12 @@ function AppWindow({
   const stretch = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
   const meta = app(win.app)
   const Icon = meta.icon
-  const browser = win.app === "browser"
+  const workspace = isWorkspace(win.app)
   const area = bounds()
-  const width = browser ? Math.min(win.w, area.w) : Math.min(420, area.w - 24)
-  const height = browser ? Math.min(win.h, area.h) : undefined
-  const maximized = browser && win.maximized
-  const toggleMaximize = () => browser && onChange({ maximized: !win.maximized })
+  const width = workspace ? Math.min(win.w, area.w) : Math.min(420, area.w - 24)
+  const height = workspace ? Math.min(win.h, area.h) : undefined
+  const maximized = workspace && win.maximized
+  const toggleMaximize = () => workspace && onChange({ maximized: !win.maximized })
 
   return (
     <section
@@ -462,7 +477,11 @@ function AppWindow({
         }}
       >
         <Icon className="h-4 w-4 opacity-80" />
-        <span className="flex-1 truncate text-[13px] font-medium">{meta.name}</span>
+        <span className="truncate text-[13px] font-medium">{meta.name}</span>
+        {win.app === "patreon" && (
+          <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-white/80">Admin</span>
+        )}
+        <span className="flex-1" />
         <button
           type="button"
           aria-label={`Minimize ${meta.name}`}
@@ -472,7 +491,7 @@ function AppWindow({
         >
           <Minus className="h-4 w-4" />
         </button>
-        {browser && (
+        {workspace && (
           <button
             type="button"
             aria-label={maximized ? `Restore ${meta.name}` : `Maximize ${meta.name}`}
@@ -493,9 +512,9 @@ function AppWindow({
           <X className="h-4 w-4" />
         </button>
       </header>
-      {browser ? (
+      {workspace ? (
         <div className="min-h-0 flex-1">
-          <Browser active={focused && !win.minimized} />
+          {win.app === "browser" ? <Browser active={focused && !win.minimized} /> : <Patreon />}
         </div>
       ) : (
         <div className="flex flex-col items-center gap-3 px-6 pt-7 pb-8 text-center">
@@ -508,7 +527,7 @@ function AppWindow({
           </p>
         </div>
       )}
-      {browser && !maximized && (
+      {workspace && !maximized && (
         <div
           aria-hidden
           className="absolute right-0 bottom-0 z-10 h-4 w-4 cursor-nwse-resize touch-none"

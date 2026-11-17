@@ -26,7 +26,9 @@ Every change shows in the mirror straight away. Drag on the scene, use the turn 
 
 In the bedroom, hover the monitor (it lights up) and click or tap it: you sit down at the desk and the camera moves in on the screen, which becomes a working desktop. On a phone the desktop fills the page.
 
-The desktop shows the Camilia wallpaper and five icons: My Files, Courses, Browser, Notes and Trash. Click an icon to select it and double-click (double-tap on a phone) to open it; apart from Browser, the apps are not built yet and open a "coming soon" window. Windows can be dragged by their title bar, brought to the front, minimised to the taskbar and closed. Icons can be dragged to another spot on the grid. The taskbar has a Start menu (signed in as Student, with the apps and Shut down), the open windows, a system tray and the local time and date.
+The desktop shows the Camilia wallpaper and six icons: My Files, Courses, Browser, Notes, Trash and Patreon. Click an icon to select it and double-click (double-tap on a phone) to open it. Browser and Patreon open their own windows; the other apps are not built yet and open a "coming soon" window. Windows can be dragged by their title bar, brought to the front, minimised to the taskbar and closed. Icons can be dragged to another spot on the grid. The taskbar has a Start menu (signed in as Student, with the apps and Shut down), the open windows, a system tray and the local time and date.
+
+Patreon is the admin library, marked with a small Admin chip on its window. There is no sign-in. Its icon is an original coral rounded tile with a white capital P, and the name Patreon is plain text under it. The window has an Audio tab and a Video tab. Each tab uploads files, lists the name, the duration when it can be read, the size and the date, plays them in the window, and deletes them. The files stay in this browser. The window can be resized or maximised, like Browser.
 
 #### The browser
 
