@@ -3,11 +3,14 @@ import {
   BACK_Z,
   INSIDE,
   OUTSIDE,
+  ROOM_APPROACH,
   doorDuration,
   enterDuration,
+  fromRoomDuration,
   riseDuration,
   sampleEnter,
   sitDuration,
+  toRoomDuration,
   type Seat,
 } from "@/lib/scene"
 
@@ -17,6 +20,7 @@ const CLIPS = [
   "door-open-b",
   "door-creak-a",
   "door-creak-b",
+  "door-close",
   "step-stone-0",
   "step-stone-1",
   "step-stone-2",
@@ -437,6 +441,61 @@ class HallSound {
       { clip: "chair-stand", at: 0.1, gain: 0.34, pan: side, wet: 0.22 },
       ...this.steps(steps, () => 0.28),
     ])
+  }
+
+  toRoom(reduced: boolean) {
+    this.silence(this.writing)
+    this.silence(this.playing)
+    const total = toRoomDuration(reduced)
+    const lead = reduced ? 0.05 : 0.35
+    const points: { time: number; x: number; z: number }[] = []
+    for (let i = 0; i <= 120; i += 1) {
+      const t = i / 120
+      const e = t * t * t * (t * (t * 6 - 15) + 10)
+      points.push({
+        time: lead + t * (total - lead),
+        x: OUTSIDE.position[0] + (ROOM_APPROACH.position[0] - OUTSIDE.position[0]) * e,
+        z: OUTSIDE.position[2] + (ROOM_APPROACH.position[2] - OUTSIDE.position[2]) * e,
+      })
+    }
+    const steps = horizontalWalk(points, () => "stone", 0.8).filter((step) => step.time < total * 0.92)
+    this.play([
+      { clip: "door-latch", at: 0, gain: 0.32, pan: 0.3, wet: 0.1, rate: 1.06 },
+      { clip: "door-open-b", at: 0.06, gain: 0.36, pan: 0.32, wet: 0.14, rate: 1.04 },
+      { clip: "door-creak-b", at: 0.3, gain: 0.1, pan: 0.36, wet: 0.16, rate: 1.1 },
+      ...this.steps(steps, () => 0.14),
+    ])
+  }
+
+  roomArrive(reduced: boolean) {
+    this.silence(this.playing)
+    const fade = reduced ? 0.1 : 0.25
+    this.play([
+      { clip: "step-wood-1", at: fade * 0.4, gain: 0.32, pan: -0.1, wet: 0.05, rate: 1.05 },
+      { clip: "step-wood-3", at: fade * 0.4 + 0.48, gain: 0.26, pan: 0.1, wet: 0.05, rate: 1.02 },
+      { clip: "door-close", at: fade + 0.62, gain: 0.34, pan: 0.05, wet: 0.06 },
+    ])
+    this.roomLevel(ROOM_LEVEL * 0.6, 0.6)
+  }
+
+  fromRoom(reduced: boolean) {
+    this.silence(this.playing)
+    const total = fromRoomDuration(reduced)
+    this.play([
+      { clip: "door-latch", at: 0, gain: 0.3, pan: 0.05, wet: 0.05, rate: 1.06 },
+      { clip: "door-open-b", at: 0.05, gain: 0.3, pan: 0.05, wet: 0.06, rate: 1.06 },
+      { clip: "step-wood-2", at: total * 0.55, gain: 0.26, pan: -0.08, wet: 0.05 },
+    ])
+  }
+
+  hallReturn() {
+    this.silence(this.playing)
+    this.play([
+      { clip: "step-stone-1", at: 0.05, gain: 0.36, pan: 0.2, wet: 0.14 },
+      { clip: "door-close", at: 0.36, gain: 0.3, pan: 0.38, wet: 0.16, rate: 0.98 },
+      { clip: "step-stone-3", at: 0.6, gain: 0.3, pan: 0.1, wet: 0.14 },
+    ])
+    this.roomLevel(ROOM_LEVEL, 0.6)
   }
 
   writeMenu() {

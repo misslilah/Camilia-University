@@ -10,6 +10,8 @@ The Camilia University reception. Push open the doors of a lecture hall, choose 
 
 The chapters: courses, campus, admissions, research, student life, and the office.
 
+Right of the double doors, a smaller door leads to a bedroom with blue walls: a bed under the window, a desk with a computer, and a wardrobe. Open it by clicking the door or the Bedroom link. Move the mouse (or drag on a phone, or use the arrow keys) to look around, and press Escape or Back to the hallway to leave.
+
 Recorded sounds follow those motions: the latch and the double doors, footsteps on stone then carpet, the wooden tiers, the chair, and the chalk. The hall adds its own reverb. The button at the top right mutes them, and the choice is remembered in this browser. Sources and licenses are in `public/sounds/CREDITS.md`.
 
 ## Run locally

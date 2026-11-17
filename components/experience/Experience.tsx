@@ -1,15 +1,17 @@
 "use client"
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { Canvas } from "@react-three/fiber"
+import { Bedroom, RoomDoor } from "@/components/experience/Bedroom"
 import { ACESFilmicToneMapping, SRGBColorSpace } from "three"
 import { FlatCampus } from "@/components/flat-campus"
 import { Blackboard, Signage } from "@/components/experience/Blackboard"
-import { Director } from "@/components/experience/Director"
+import { Director, type LookOffset } from "@/components/experience/Director"
 import { Doors } from "@/components/experience/Doors"
 import { Hall, Lights, Motes } from "@/components/experience/Hall"
 import { Hud } from "@/components/experience/Hud"
 import { Seating } from "@/components/experience/Seating"
+import { FADE_ID } from "@/lib/fade"
 import { sound } from "@/lib/sound"
 import {
   CHAPTERS,
@@ -46,6 +48,9 @@ export default function Experience() {
     }
   })
   const openRef = useRef(0)
+  const roomDoorRef = useRef(0)
+  const lookRef = useRef<LookOffset>({ yaw: 0, pitch: 0 })
+  const dragRef = useRef<{ x: number; y: number; yaw: number; pitch: number } | null>(null)
 
   useEffect(() => {
     sound.prime(muted)
@@ -90,6 +95,51 @@ export default function Experience() {
     sound.glideIn(reduced)
     go("inside")
   }, [go, reduced])
+
+  const enterRoom = useCallback(() => {
+    if (phase !== "arrival") return
+    sound.toRoom(reduced)
+    go("toRoom")
+  }, [go, phase, reduced])
+
+  const roomReached = useCallback(() => {
+    lookRef.current = { yaw: 0, pitch: 0 }
+    sound.roomArrive(reduced)
+    go("room")
+  }, [go, reduced])
+
+  const leaveRoom = useCallback(() => {
+    if (phase !== "room") return
+    sound.fromRoom(reduced)
+    go("fromRoom")
+  }, [go, phase, reduced])
+
+  const roomLeft = useCallback(() => {
+    sound.hallReturn()
+    go("arrival")
+  }, [go])
+
+  const look = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (phase !== "room") return
+      const rect = event.currentTarget.getBoundingClientRect()
+      if (event.pointerType === "mouse") {
+        const nx = (event.clientX - rect.left) / rect.width - 0.5
+        const ny = (event.clientY - rect.top) / rect.height - 0.5
+        lookRef.current = { yaw: nx * 1.25, pitch: -ny * 0.42 }
+        return
+      }
+      const drag = dragRef.current
+      if (!drag) return
+      const yaw = drag.yaw - ((event.clientX - drag.x) / rect.width) * 2.2
+      const pitch = drag.pitch + ((event.clientY - drag.y) / rect.height) * 0.8
+      lookRef.current = {
+        yaw: Math.max(-1.1, Math.min(1.1, yaw)),
+        pitch: Math.max(-0.3, Math.min(0.3, pitch)),
+      }
+    },
+    [phase],
+  )
 
   const pickSeat = useCallback(
     (id: string) => {
@@ -142,6 +192,13 @@ export default function Experience() {
         openDoors()
       }
       if (phase === "opening" && event.key === "Escape") skip()
+      if (phase === "room" && event.key === "Escape") leaveRoom()
+      if (phase === "room" && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+        event.preventDefault()
+        const step = event.key === "ArrowLeft" ? -0.25 : 0.25
+        const current = lookRef.current
+        lookRef.current = { ...current, yaw: Math.max(-1.1, Math.min(1.1, current.yaw + step)) }
+      }
       if (phase === "inside" && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
         event.preventDefault()
         const dir =
@@ -166,7 +223,7 @@ export default function Experience() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [chapterId, closeChapter, focused, openChapter, openDoors, phase, pickSeat, settled, skip, stand])
+  }, [chapterId, closeChapter, focused, leaveRoom, openChapter, openDoors, phase, pickSeat, settled, skip, stand])
 
   if (!webgl) return <FlatCampus />
 
@@ -174,7 +231,21 @@ export default function Experience() {
   const activeId = phase === "inside" ? hovered || focused : seatId
 
   return (
-    <div className="relative h-full w-full bg-[#140f0c]">
+    <div
+      className="relative h-full w-full touch-none bg-[#140f0c]"
+      onPointerMove={look}
+      onPointerDown={(event) => {
+        if (phase === "room" && event.pointerType !== "mouse") {
+          dragRef.current = { x: event.clientX, y: event.clientY, ...lookRef.current }
+        }
+      }}
+      onPointerUp={() => {
+        dragRef.current = null
+      }}
+      onPointerCancel={() => {
+        dragRef.current = null
+      }}
+    >
       <Canvas
         shadows
         dpr={[1, 1.5]}
@@ -187,9 +258,11 @@ export default function Experience() {
         }}
       >
         <color attach="background" args={["#cbb89f"]} />
-        <Lights seated={phase === "sitting"} openRef={openRef} />
+        <Lights seated={phase === "sitting"} away={phase === "room" || phase === "fromRoom"} openRef={openRef} />
         <Hall />
         <Doors openRef={openRef} phase={phase} onOpen={openDoors} />
+        <RoomDoor phase={phase} amountRef={roomDoorRef} onOpen={enterRoom} />
+        <Bedroom phase={phase} />
         <Seating phase={phase} activeId={activeId} onHover={setHovered} onPick={pickSeat} />
         <Motes />
         <Suspense fallback={null}>
@@ -207,6 +280,10 @@ export default function Experience() {
           reduced={reduced}
           seat={seat}
           openRef={openRef}
+          roomDoorRef={roomDoorRef}
+          lookRef={lookRef}
+          onRoomReached={roomReached}
+          onLeftRoom={roomLeft}
           onEntered={() => go("inside")}
           onSat={() => {
             setSettled(true)
@@ -214,6 +291,7 @@ export default function Experience() {
           }}
         />
       </Canvas>
+      <div id={FADE_ID} aria-hidden className="pointer-events-none absolute inset-0 z-[5] bg-[#07080b]" style={{ opacity: 0 }} />
       <Hud
         phase={phase}
         seat={seat}
@@ -222,6 +300,8 @@ export default function Experience() {
         onOpen={openDoors}
         onSkip={skip}
         onStand={stand}
+        onRoom={enterRoom}
+        onLeaveRoom={leaveRoom}
         onSelect={openChapter}
         onBack={closeChapter}
         muted={muted}

@@ -7,6 +7,7 @@ import {
   DoubleSide,
   Float32BufferAttribute,
   Object3D,
+  type DirectionalLight,
   type PointLight,
   type Points,
   type SpotLight,
@@ -19,6 +20,7 @@ import {
   FRONT_Z,
   HALL_TIERS,
   INNER_X,
+  ROOM_DOOR,
   SILL_Y,
 } from "@/lib/scene"
 import { getTextures } from "@/lib/textures"
@@ -108,15 +110,23 @@ function BackWall() {
   const sideWidth = INNER_X - DOOR_HALF
   const sideCenter = (INNER_X + DOOR_HALF) / 2
   const upperHeight = CEILING_Y - top
+  const roomX0 = ROOM_DOOR.x - ROOM_DOOR.width / 2
+  const roomX1 = ROOM_DOOR.x + ROOM_DOOR.width / 2
+  const roomTop = SILL_Y + ROOM_DOOR.height
+  const rightPieces: [number, number, number, number][] = [
+    [DOOR_HALF, roomX0, SILL_Y, CEILING_Y],
+    [roomX0, roomX1, roomTop, CEILING_Y],
+    [roomX1, INNER_X, SILL_Y, CEILING_Y],
+  ]
   return (
     <group>
-      {[-1, 1].map((side) => (
-        <mesh
-          key={side}
-          position={[side * sideCenter, (SILL_Y + CEILING_Y) / 2, BACK_Z + 0.12]}
-          receiveShadow
-        >
-          <boxGeometry args={[sideWidth, CEILING_Y - SILL_Y, 0.24]} />
+      <mesh position={[-sideCenter, (SILL_Y + CEILING_Y) / 2, BACK_Z + 0.12]} receiveShadow>
+        <boxGeometry args={[sideWidth, CEILING_Y - SILL_Y, 0.24]} />
+        <meshStandardMaterial map={textures.plaster} roughness={0.94} />
+      </mesh>
+      {rightPieces.map(([x0, x1, y0, y1]) => (
+        <mesh key={`${x0}-${y0}`} position={[(x0 + x1) / 2, (y0 + y1) / 2, BACK_Z + 0.12]} receiveShadow>
+          <boxGeometry args={[x1 - x0, y1 - y0, 0.24]} />
           <meshStandardMaterial map={textures.plaster} roughness={0.94} />
         </mesh>
       ))}
@@ -325,11 +335,15 @@ function Vestibule() {
 
 export function Lights({
   seated,
+  away,
   openRef,
 }: {
   seated: boolean
+  away: boolean
   openRef: { current: number }
 }) {
+  const sun = useRef<DirectionalLight>(null)
+  const fill = useRef<DirectionalLight>(null)
   const sunTarget = useMemo(() => {
     const target = new Object3D()
     target.position.set(0, 1.4, 0.5)
@@ -349,8 +363,11 @@ export function Lights({
       spot.current.intensity += (goal - spot.current.intensity) * (1 - Math.exp(-delta * 2.2))
     }
     if (spill.current) {
-      spill.current.intensity = 1.5 + openRef.current * 10
+      spill.current.intensity = away ? 0 : 1.5 + openRef.current * 10
     }
+    if (spot.current && away) spot.current.intensity = 0
+    if (sun.current) sun.current.intensity = away ? 0 : 2.35
+    if (fill.current) fill.current.intensity = away ? 0 : 0.45
   })
 
   return (
@@ -359,6 +376,7 @@ export function Lights({
       <ambientLight intensity={0.22} />
       <primitive object={sunTarget} />
       <directionalLight
+        ref={sun}
         position={[7.5, 11, 6]}
         intensity={2.35}
         color="#ffe0bc"
@@ -374,7 +392,7 @@ export function Lights({
         shadow-camera-bottom={-14}
         target={sunTarget}
       />
-      <directionalLight position={[-8, 6, 2]} intensity={0.45} color="#d5e2ff" />
+      <directionalLight ref={fill} position={[-8, 6, 2]} intensity={0.45} color="#d5e2ff" />
       <primitive object={boardTarget} />
       <spotLight
         ref={spot}

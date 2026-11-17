@@ -1,6 +1,6 @@
 export type Vec3 = [number, number, number]
 
-export type Phase = "arrival" | "opening" | "inside" | "sitting"
+export type Phase = "arrival" | "opening" | "inside" | "sitting" | "toRoom" | "room" | "fromRoom"
 
 export type Chapter = {
   id: string
@@ -38,9 +38,49 @@ export const BOARD = {
 }
 
 export const OUTSIDE = {
-  position: [0, SILL_Y + 1.58, BACK_Z + 4.25] as Vec3,
+  position: [0, SILL_Y + 1.58, BACK_Z + 4.9] as Vec3,
   look: [0, SILL_Y + 1.18, BACK_Z - 0.4] as Vec3,
   fov: 44,
+}
+
+// The bedroom door sits in the facade, right of the double doors.
+export const ROOM_DOOR = {
+  x: 2.06,
+  width: 0.84,
+  height: 2.12,
+  face: BACK_Z + 0.24,
+}
+
+// The bedroom is built away from the hall; a fade to black covers the jump.
+export const ROOM_ORIGIN: Vec3 = [40, 0, 0]
+
+export const ROOM = {
+  width: 4.4,
+  depth: 4,
+  height: 2.7,
+}
+
+export const ROOM_APPROACH = {
+  position: [ROOM_DOOR.x - 0.04, SILL_Y + 1.58, BACK_Z + 1.15] as Vec3,
+  look: [ROOM_DOOR.x + 0.04, SILL_Y + 1.32, BACK_Z - 1.4] as Vec3,
+}
+
+export const ROOM_VIEW = {
+  position: [ROOM_ORIGIN[0] + 0.3, 1.56, ROOM_ORIGIN[2] + 1.62] as Vec3,
+  look: [ROOM_ORIGIN[0] - 0.2, 1.02, ROOM_ORIGIN[2] - 2] as Vec3,
+  fov: 60,
+}
+
+export function toRoomDuration(reduced: boolean) {
+  return reduced ? 0.6 : 2
+}
+
+export function roomDoorDuration(reduced: boolean) {
+  return reduced ? 0.2 : 0.95
+}
+
+export function fromRoomDuration(reduced: boolean) {
+  return reduced ? 0.3 : 0.75
 }
 
 export const INSIDE = {
@@ -235,7 +275,7 @@ export function riseDuration(reduced: boolean) {
 }
 
 export function doorAmount(phase: Phase, openingElapsed: number, reduced: boolean) {
-  if (phase === "arrival") return 0
+  if (phase === "arrival" || phase === "toRoom" || phase === "room" || phase === "fromRoom") return 0
   if (phase !== "opening") return 1
   const duration = doorDuration(reduced)
   const t = Math.min(1, Math.max(0, openingElapsed / duration))

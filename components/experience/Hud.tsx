@@ -1,6 +1,6 @@
 "use client"
 
-import { Volume2, VolumeX } from "lucide-react"
+import { ArrowLeft, ArrowRight, Volume2, VolumeX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CHAPTERS, type Phase, type Seat } from "@/lib/scene"
 import { cn } from "@/lib/utils"
@@ -13,6 +13,8 @@ export function Hud({
   onOpen,
   onSkip,
   onStand,
+  onRoom,
+  onLeaveRoom,
   onSelect,
   onBack,
   muted,
@@ -25,6 +27,8 @@ export function Hud({
   onOpen: () => void
   onSkip: () => void
   onStand: () => void
+  onRoom: () => void
+  onLeaveRoom: () => void
   onSelect: (id: string) => void
   onBack: () => void
   muted: boolean
@@ -86,10 +90,43 @@ export function Hud({
           >
             Open the doors
           </Button>
-          <Button variant="ghost" className="text-[#f3ead7]/75 hover:bg-white/10 hover:text-[#f6f0e6]" onClick={onSkip}>
-            Enter directly
-          </Button>
+          <div className="flex flex-wrap items-center justify-center gap-1">
+            <Button variant="ghost" className="text-[#f3ead7]/75 hover:bg-white/10 hover:text-[#f6f0e6]" onClick={onSkip}>
+              Enter directly
+            </Button>
+            <span aria-hidden className="text-[#f3ead7]/30">
+              ·
+            </span>
+            <Button variant="ghost" className="text-[#f3ead7]/75 hover:bg-white/10 hover:text-[#f6f0e6]" onClick={onRoom}>
+              Bedroom
+              <ArrowRight />
+            </Button>
+          </div>
         </div>
+      </div>
+
+      <div
+        aria-hidden={phase !== "room"}
+        inert={phase !== "room"}
+        className={cn(
+          "absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 pr-4 pb-5 pl-16 transition-opacity duration-500 sm:pr-7 sm:pb-7",
+          phase === "room" ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+      >
+        <Button
+          variant="outline"
+          className="pointer-events-auto rounded-full border-[#f3ead7]/30 bg-[#1a120e]/55 text-[#f6f0e6] backdrop-blur-md hover:bg-[#f3ead7] hover:text-[#2a1c14]"
+          onClick={onLeaveRoom}
+        >
+          <ArrowLeft />
+          Back to the hallway
+        </Button>
+        <p className="hidden rounded-full bg-[#1a120e]/45 px-3 py-2 text-xs tracking-wide text-[#f6f0e6]/85 backdrop-blur-md sm:block">
+          Move the mouse to look around
+        </p>
+        <p className="rounded-full bg-[#1a120e]/45 px-3 py-2 text-xs tracking-wide text-[#f6f0e6]/85 backdrop-blur-md sm:hidden">
+          Drag to look around
+        </p>
       </div>
 
       <div
@@ -148,6 +185,9 @@ export function Hud({
         {phase === "arrival" && "You are at the doors of Camilia University."}
         {phase === "opening" && "The doors are opening."}
         {phase === "inside" && "Choose a chair in the hall."}
+        {phase === "toRoom" && "You open the bedroom door."}
+        {phase === "room" &&
+          "You are in the bedroom: blue walls, a bed under the window, a desk with a computer, and a wardrobe. Press Escape to go back to the hallway."}
         {phase === "sitting" &&
           (chapter
             ? `${chapter.title}. ${chapter.body}`

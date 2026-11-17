@@ -109,3 +109,189 @@ export function getTextures(): HallTextures {
   }
   return cache
 }
+
+export type RoomTextures = {
+  wall: Texture
+  floor: Texture
+  screen: Texture
+  poster: Texture
+  duvet: Texture
+  rug: Texture
+  sky: Texture
+}
+
+let roomCache: RoomTextures | null = null
+
+function largeTexture(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void) {
+  const canvas = document.createElement("canvas")
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext("2d")
+  if (!ctx) throw new Error("Canvas unavailable")
+  draw(ctx)
+  const texture = new CanvasTexture(canvas)
+  texture.colorSpace = SRGBColorSpace
+  texture.anisotropy = 8
+  texture.needsUpdate = true
+  return texture
+}
+
+export function getRoomTextures(): RoomTextures {
+  if (roomCache) return roomCache
+  roomCache = {
+    wall: canvasTexture((ctx, size) => {
+      ctx.fillStyle = "#4d7db4"
+      ctx.fillRect(0, 0, size, size)
+      for (let i = 0; i < 1400; i += 1) {
+        const light = Math.random() > 0.5
+        ctx.fillStyle = light ? "rgba(255,255,255,0.035)" : "rgba(10,30,70,0.05)"
+        ctx.fillRect(Math.random() * size, Math.random() * size, 2, 2)
+      }
+    }, 2, 1),
+    floor: canvasTexture((ctx, size) => {
+      ctx.fillStyle = "#c59a6a"
+      ctx.fillRect(0, 0, size, size)
+      const plank = 32
+      for (let x = 0; x < size; x += plank) {
+        const tone = (x / plank) % 3
+        ctx.fillStyle = tone === 0 ? "rgba(120,72,34,0.12)" : tone === 1 ? "rgba(255,230,190,0.08)" : "rgba(90,55,25,0.06)"
+        ctx.fillRect(x, 0, plank - 1, size)
+        ctx.fillStyle = "rgba(70,40,20,0.35)"
+        ctx.fillRect(x + plank - 1, 0, 1, size)
+        const seam = ((x * 37) % size) | 0
+        ctx.fillRect(x, seam, plank, 1)
+        for (let y = 0; y < size; y += 4) {
+          ctx.strokeStyle = `rgba(110,66,30,${0.04 + ((x + y) % 7) * 0.012})`
+          ctx.beginPath()
+          ctx.moveTo(x, y)
+          ctx.lineTo(x + plank, y + Math.sin(y * 0.15 + x) * 1.4)
+          ctx.stroke()
+        }
+      }
+    }, 4, 4),
+    screen: largeTexture(512, 320, (ctx) => {
+      const sky = ctx.createLinearGradient(0, 0, 0, 320)
+      sky.addColorStop(0, "#0f2f63")
+      sky.addColorStop(0.62, "#2d6fc4")
+      sky.addColorStop(1, "#7fb6ea")
+      ctx.fillStyle = sky
+      ctx.fillRect(0, 0, 512, 320)
+      ctx.fillStyle = "#16365a"
+      ctx.beginPath()
+      ctx.moveTo(0, 250)
+      ctx.lineTo(110, 175)
+      ctx.lineTo(200, 230)
+      ctx.lineTo(310, 150)
+      ctx.lineTo(420, 220)
+      ctx.lineTo(512, 185)
+      ctx.lineTo(512, 300)
+      ctx.lineTo(0, 300)
+      ctx.fill()
+      ctx.fillStyle = "rgba(10,18,32,0.92)"
+      ctx.fillRect(0, 296, 512, 24)
+      ;["#e8b04a", "#4ac17a", "#e85d5d", "#7aa7ff"].forEach((color, i) => {
+        ctx.fillStyle = color
+        ctx.fillRect(12 + i * 26, 302, 16, 12)
+      })
+      ctx.fillStyle = "rgba(255,255,255,0.85)"
+      ctx.font = "13px sans-serif"
+      ctx.fillText("16:42", 464, 313)
+      ctx.fillStyle = "rgba(14,22,38,0.94)"
+      ctx.fillRect(150, 46, 300, 196)
+      ctx.fillStyle = "#24324d"
+      ctx.fillRect(150, 46, 300, 20)
+      ;["#e85d5d", "#e8b04a", "#4ac17a"].forEach((color, i) => {
+        ctx.fillStyle = color
+        ctx.beginPath()
+        ctx.arc(162 + i * 14, 56, 4, 0, Math.PI * 2)
+        ctx.fill()
+      })
+      const code = ["#7aa7ff", "#e8b04a", "#cfd8e6", "#4ac17a", "#cfd8e6", "#e85d5d", "#7aa7ff", "#cfd8e6"]
+      code.forEach((color, i) => {
+        ctx.fillStyle = color
+        const indent = [0, 16, 16, 32, 32, 16, 0, 16][i]
+        ctx.fillRect(164 + indent, 80 + i * 18, 60 + ((i * 47) % 140), 7)
+      })
+      for (let i = 0; i < 4; i += 1) {
+        ctx.fillStyle = "rgba(255,255,255,0.18)"
+        ctx.fillRect(22, 30 + i * 58, 40, 40)
+        ctx.fillStyle = ["#e8b04a", "#7aa7ff", "#4ac17a", "#e85d5d"][i]
+        ctx.fillRect(30, 38 + i * 58, 24, 24)
+      }
+    }),
+    poster: largeTexture(256, 360, (ctx) => {
+      ctx.fillStyle = "#0e1630"
+      ctx.fillRect(0, 0, 256, 360)
+      for (let i = 0; i < 120; i += 1) {
+        ctx.fillStyle = `rgba(255,255,255,${0.3 + Math.random() * 0.6})`
+        ctx.fillRect(Math.random() * 256, Math.random() * 260, 1.6, 1.6)
+      }
+      const planet = ctx.createRadialGradient(110, 130, 10, 128, 150, 80)
+      planet.addColorStop(0, "#ffb36b")
+      planet.addColorStop(1, "#b2452f")
+      ctx.fillStyle = planet
+      ctx.beginPath()
+      ctx.arc(128, 150, 66, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.strokeStyle = "rgba(255,226,180,0.85)"
+      ctx.lineWidth = 6
+      ctx.beginPath()
+      ctx.ellipse(128, 152, 112, 24, -0.25, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.fillStyle = "#f4efe4"
+      ctx.font = "bold 40px sans-serif"
+      ctx.textAlign = "center"
+      ctx.fillText("EXPLORE", 128, 300)
+      ctx.font = "15px sans-serif"
+      ctx.fillStyle = "rgba(244,239,228,0.7)"
+      ctx.fillText("MISSION 07 · SATURN", 128, 330)
+    }),
+    duvet: canvasTexture((ctx, size) => {
+      ctx.fillStyle = "#24406b"
+      ctx.fillRect(0, 0, size, size)
+      for (let x = 0; x < size; x += 64) {
+        ctx.fillStyle = "rgba(240,240,235,0.85)"
+        ctx.fillRect(x + 40, 0, 7, size)
+        ctx.fillStyle = "rgba(230,120,60,0.7)"
+        ctx.fillRect(x + 52, 0, 3, size)
+      }
+    }, 2, 1),
+    rug: canvasTexture((ctx, size) => {
+      ctx.fillStyle = "#d9d2c2"
+      ctx.fillRect(0, 0, size, size)
+      ctx.strokeStyle = "#2f4f7c"
+      ctx.lineWidth = 14
+      ctx.strokeRect(18, 18, size - 36, size - 36)
+      ctx.strokeStyle = "#c46a3c"
+      ctx.lineWidth = 5
+      ctx.strokeRect(40, 40, size - 80, size - 80)
+      for (let i = 0; i < 2400; i += 1) {
+        ctx.fillStyle = `rgba(80,70,60,${Math.random() * 0.06})`
+        ctx.fillRect(Math.random() * size, Math.random() * size, 2, 2)
+      }
+    }),
+    sky: largeTexture(256, 256, (ctx) => {
+      const sky = ctx.createLinearGradient(0, 0, 0, 256)
+      sky.addColorStop(0, "#9cc9f2")
+      sky.addColorStop(0.7, "#dcecf8")
+      sky.addColorStop(1, "#f3e8d0")
+      ctx.fillStyle = sky
+      ctx.fillRect(0, 0, 256, 256)
+      ctx.fillStyle = "#6f9a6a"
+      ctx.beginPath()
+      ctx.moveTo(0, 210)
+      ctx.quadraticCurveTo(80, 180, 150, 205)
+      ctx.quadraticCurveTo(210, 222, 256, 196)
+      ctx.lineTo(256, 256)
+      ctx.lineTo(0, 256)
+      ctx.fill()
+      ctx.fillStyle = "rgba(255,255,255,0.9)"
+      ;[[60, 60, 26], [92, 54, 20], [180, 90, 22], [205, 84, 16]].forEach(([x, y, r]) => {
+        ctx.beginPath()
+        ctx.arc(x, y, r, 0, Math.PI * 2)
+        ctx.fill()
+      })
+    }),
+  }
+  return roomCache
+}
