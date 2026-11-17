@@ -26,7 +26,16 @@ Every change shows in the mirror straight away. Drag on the scene, use the turn 
 
 In the bedroom, hover the monitor (it lights up) and click or tap it: you sit down at the desk and the camera moves in on the screen, which becomes a working desktop. On a phone the desktop fills the page.
 
-The desktop shows the Camilia wallpaper and five icons: My Files, Courses, Browser, Notes and Trash. Click an icon to select it and double-click (double-tap on a phone) to open it; the apps are not built yet, so each opens a "coming soon" window. Windows can be dragged by their title bar, brought to the front, minimised to the taskbar and closed. Icons can be dragged to another spot on the grid. The taskbar has a Start menu (signed in as Student, with the apps and Shut down), the open windows, a system tray and the local time and date.
+The desktop shows the Camilia wallpaper and five icons: My Files, Courses, Browser, Notes and Trash. Click an icon to select it and double-click (double-tap on a phone) to open it; apart from Browser, the apps are not built yet and open a "coming soon" window. Windows can be dragged by their title bar, brought to the front, minimised to the taskbar and closed. Icons can be dragged to another spot on the grid. The taskbar has a Start menu (signed in as Student, with the apps and Shut down), the open windows, a system tray and the local time and date.
+
+#### The browser
+
+Browser opens a larger window that can be resized from its bottom-right corner or maximised (it opens maximised on a phone). It has tabs (+ to open one, × to close), Back, Forward, Reload and Home buttons, and an address bar. The start page has tiles for the sites on the Camilia network, and typing part of a site's address suggests it. Any other address shows "This site can't be reached". All sites are fictional and drawn in the page; nothing loads from the internet.
+
+- **avazon.com**: a parody furniture store with its own lowercase wordmark. It has search and category tabs for Beds, Desks, Chairs, Wardrobes & storage, Lighting and Decor. Each product has a page with a price, a rating and Add to cart. The cart drawer changes quantities and shows the subtotal; checkout is not available yet.
+- **threadline.com**: a clothing shop with Tops, Pants, Shoes and Underwear for Women or Men. It sells the same pieces as the wardrobe, and has its own bag. Buying does not change the wardrobe yet.
+
+Each site's cart is saved in this browser. A third site is registered as locked: it is not on the start page and is never suggested, and its address answers like an unknown site until it is unlocked in a later update.
 
 Shut down, Back to the room, or Escape returns to the bedroom. While the desktop is open, the mouse no longer turns the view and the hall's keyboard shortcuts are off.
 

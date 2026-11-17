@@ -7,6 +7,8 @@ import {
   Globe,
   GraduationCap,
   LogOut,
+  Maximize2,
+  Minimize2,
   Minus,
   NotebookPen,
   Power,
@@ -16,6 +18,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react"
+import { Browser } from "@/components/experience/browser/Browser"
 import { Button } from "@/components/ui/button"
 import { PANEL_BREAKPOINT } from "@/lib/scene"
 import { useScreenRect, type ScreenRect } from "@/lib/screen-rect"
@@ -39,7 +42,7 @@ const CELL = { w: 92, h: 98, pad: 14 }
 const DOUBLE_TAP_MS = 400
 
 type Cell = { col: number; row: number }
-type Win = { app: AppId; x: number; y: number; z: number; minimized: boolean }
+type Win = { app: AppId; x: number; y: number; w: number; h: number; z: number; minimized: boolean; maximized: boolean }
 
 const narrowQuery = `(max-width: ${PANEL_BREAKPOINT - 1}px)`
 
@@ -169,11 +172,18 @@ function Desktop({ active, scale, onLeave }: { active: boolean; scale: number; o
         return list.map((win) => (win.app === id ? { ...win, z, minimized: false } : win))
       }
       const { w, h } = size()
-      const width = Math.min(420, w - 24)
       const n = list.length
+      if (id === "browser") {
+        const width = Math.min(980, w - 40)
+        const height = Math.min(660, h - 32)
+        const x = Math.max(12, (w - width) / 2 + n * 18)
+        const y = Math.max(8, (h - height) / 2 + n * 14)
+        return [...list, { app: id, x, y, w: width, h: height, z, minimized: false, maximized: w < 640 }]
+      }
+      const width = Math.min(420, w - 24)
       const x = Math.max(12, Math.min(w - width - 12, (w - width) / 2 + (n - 1) * 28))
       const y = Math.max(12, Math.min(h - 240, h * 0.16 + n * 26))
-      return [...list, { app: id, x, y, z, minimized: false }]
+      return [...list, { app: id, x, y, w: width, h: 0, z, minimized: false, maximized: false }]
     })
   }
 
@@ -312,7 +322,7 @@ function Desktop({ active, scale, onLeave }: { active: boolean; scale: number; o
             scale={scale}
             bounds={size}
             onFocus={() => raise(win.app)}
-            onMove={(x, y) => setWindows((list) => list.map((item) => (item.app === win.app ? { ...item, x, y } : item)))}
+            onChange={(patch) => setWindows((list) => list.map((item) => (item.app === win.app ? { ...item, ...patch } : item)))}
             onMinimize={() => minimize(win.app)}
             onClose={() => close(win.app)}
           />
@@ -372,13 +382,15 @@ function Wallpaper() {
   )
 }
 
+const MIN_WINDOW = { w: 360, h: 280 }
+
 function AppWindow({
   win,
   focused,
   scale,
   bounds,
   onFocus,
-  onMove,
+  onChange,
   onMinimize,
   onClose,
 }: {
@@ -387,15 +399,20 @@ function AppWindow({
   scale: number
   bounds: () => { w: number; h: number }
   onFocus: () => void
-  onMove: (x: number, y: number) => void
+  onChange: (patch: Partial<Win>) => void
   onMinimize: () => void
   onClose: () => void
 }) {
   const grab = useRef<{ x: number; y: number; wx: number; wy: number } | null>(null)
+  const stretch = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
   const meta = app(win.app)
   const Icon = meta.icon
-  const { w } = bounds()
-  const width = Math.min(420, w - 24)
+  const browser = win.app === "browser"
+  const area = bounds()
+  const width = browser ? Math.min(win.w, area.w) : Math.min(420, area.w - 24)
+  const height = browser ? Math.min(win.h, area.h) : undefined
+  const maximized = browser && win.maximized
+  const toggleMaximize = () => browser && onChange({ maximized: !win.maximized })
 
   return (
     <section
@@ -407,28 +424,35 @@ function AppWindow({
         onFocus()
       }}
       className={cn(
-        "absolute flex flex-col overflow-hidden rounded-xl border bg-[#f7f5f0] text-[#1d2433] shadow-[0_24px_60px_rgba(0,0,0,0.45)]",
-        focused ? "border-white/60" : "border-white/25 opacity-95",
+        "absolute flex flex-col overflow-hidden border bg-[#f7f5f0] text-[#1d2433] shadow-[0_24px_60px_rgba(0,0,0,0.45)]",
+        maximized ? "rounded-none border-transparent" : "rounded-xl",
+        !maximized && (focused ? "border-white/60" : "border-white/25 opacity-95"),
       )}
-      style={{ left: win.x, top: win.y, width, zIndex: win.z }}
+      style={
+        maximized
+          ? { left: 0, top: 0, width: "100%", height: "100%", zIndex: win.z }
+          : { left: win.x, top: win.y, width, height, zIndex: win.z }
+      }
     >
       <header
         className={cn(
-          "flex h-10 cursor-grab touch-none items-center gap-2 pr-1.5 pl-3 active:cursor-grabbing",
+          "flex h-10 shrink-0 touch-none items-center gap-2 pr-1.5 pl-3",
+          !maximized && "cursor-grab active:cursor-grabbing",
           focused ? "bg-[#1d2a4a] text-white" : "bg-[#3a4560] text-white/80",
         )}
+        onDoubleClick={toggleMaximize}
         onPointerDown={(event) => {
-          if (event.button !== 0) return
+          if (event.button !== 0 || maximized) return
           event.currentTarget.setPointerCapture(event.pointerId)
           grab.current = { x: event.clientX, y: event.clientY, wx: win.x, wy: win.y }
         }}
         onPointerMove={(event) => {
           const g = grab.current
           if (!g) return
-          const area = bounds()
+          const box = bounds()
           const x = g.wx + (event.clientX - g.x) / scale
           const y = g.wy + (event.clientY - g.y) / scale
-          onMove(Math.max(-width + 80, Math.min(area.w - 80, x)), Math.max(0, Math.min(area.h - 40, y)))
+          onChange({ x: Math.max(-width + 80, Math.min(box.w - 80, x)), y: Math.max(0, Math.min(box.h - 40, y)) })
         }}
         onPointerUp={() => {
           grab.current = null
@@ -448,6 +472,17 @@ function AppWindow({
         >
           <Minus className="h-4 w-4" />
         </button>
+        {browser && (
+          <button
+            type="button"
+            aria-label={maximized ? `Restore ${meta.name}` : `Maximize ${meta.name}`}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={toggleMaximize}
+            className="grid h-7 w-7 place-items-center rounded-md hover:bg-white/15"
+          >
+            {maximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </button>
+        )}
         <button
           type="button"
           aria-label={`Close ${meta.name}`}
@@ -458,15 +493,53 @@ function AppWindow({
           <X className="h-4 w-4" />
         </button>
       </header>
-      <div className="flex flex-col items-center gap-3 px-6 pt-7 pb-8 text-center">
-        <span className={cn("grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br shadow-md", meta.tint)}>
-          <Icon className="h-7 w-7 text-white" strokeWidth={1.8} />
-        </span>
-        <p className="font-serif text-2xl">{meta.name} is coming soon</p>
-        <p className="max-w-[300px] text-sm text-[#1d2433]/65">
-          This app is not available yet. It will open here in a future update of the Camilia desktop.
-        </p>
-      </div>
+      {browser ? (
+        <div className="min-h-0 flex-1">
+          <Browser active={focused && !win.minimized} />
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-3 px-6 pt-7 pb-8 text-center">
+          <span className={cn("grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br shadow-md", meta.tint)}>
+            <Icon className="h-7 w-7 text-white" strokeWidth={1.8} />
+          </span>
+          <p className="font-serif text-2xl">{meta.name} is coming soon</p>
+          <p className="max-w-[300px] text-sm text-[#1d2433]/65">
+            This app is not available yet. It will open here in a future update of the Camilia desktop.
+          </p>
+        </div>
+      )}
+      {browser && !maximized && (
+        <div
+          aria-hidden
+          className="absolute right-0 bottom-0 z-10 h-4 w-4 cursor-nwse-resize touch-none"
+          onPointerDown={(event) => {
+            if (event.button !== 0) return
+            event.stopPropagation()
+            onFocus()
+            event.currentTarget.setPointerCapture(event.pointerId)
+            stretch.current = { x: event.clientX, y: event.clientY, w: width, h: height ?? MIN_WINDOW.h }
+          }}
+          onPointerMove={(event) => {
+            const s = stretch.current
+            if (!s) return
+            const box = bounds()
+            onChange({
+              w: Math.max(MIN_WINDOW.w, Math.min(box.w - win.x, s.w + (event.clientX - s.x) / scale)),
+              h: Math.max(MIN_WINDOW.h, Math.min(box.h - win.y, s.h + (event.clientY - s.y) / scale)),
+            })
+          }}
+          onPointerUp={() => {
+            stretch.current = null
+          }}
+          onPointerCancel={() => {
+            stretch.current = null
+          }}
+        >
+          <svg viewBox="0 0 16 16" className="h-4 w-4 text-black/35">
+            <path d="M14 6 L6 14 M14 10 L10 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        </div>
+      )}
     </section>
   )
 }
