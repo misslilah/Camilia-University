@@ -10,7 +10,7 @@ The Camilia University reception. Push open the doors of a lecture hall, choose 
 
 The chapters: courses, campus, admissions, research, student life, and the office.
 
-Right of the double doors, a smaller door leads to a bedroom with blue walls: a bed under the window, a desk with a computer, and a wardrobe. Open it by clicking the door or the Bedroom link. Move the mouse (or drag on a phone, or use the arrow keys) to look around, and press Escape or Back to the hallway to leave.
+Right of the double doors, a smaller door leads to a bedroom with blue walls: a bed under the window, a desk with a computer, a wardrobe and a standing mirror. Open it by clicking the door or the Bedroom link. Move the mouse (or drag on a phone, or use the arrow keys) to look around, and press Escape or Back to the hallway to leave.
 
 ### The wardrobe and the mirror
 
