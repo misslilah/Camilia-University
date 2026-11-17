@@ -202,6 +202,11 @@ export function Director({
       const turn = smootherstep(t / 0.42)
       const walk = smootherstep((t - 0.22) / 0.78)
       camera.position.lerpVectors(fromP.current, toP.current, walk)
+      // Step back from the swung-in leaves while turning, or one fills the frame.
+      const away = Math.sin(Math.PI * Math.min(1, t / 0.5)) * 0.6
+      const run = Math.hypot(toP.current.x - fromP.current.x, toP.current.z - fromP.current.z) || 1
+      camera.position.x -= ((toP.current.x - fromP.current.x) / run) * away
+      camera.position.z -= ((toP.current.z - fromP.current.z) / run) * away
       camera.position.y += Math.sin(walk * Math.PI * 5) * 0.012
       const toYaw = Math.atan2(toL.current.x - toP.current.x, toL.current.z - toP.current.z)
       let turnBy = toYaw - motion.fromYaw
