@@ -5,14 +5,17 @@ import { useFrame } from "@react-three/fiber"
 import { PerspectiveCamera, Vector3 } from "three"
 import { setFade } from "@/lib/fade"
 import {
+  HALL_EXIT,
   INSIDE,
   OUTSIDE,
   ROOM_APPROACH,
   ROOM_VIEW,
   SIT_FOV,
+  closeDuration,
   doorAmount,
   enterDuration,
   fromRoomDuration,
+  leaveDuration,
   riseDuration,
   roomDoorDuration,
   sampleEnter,
@@ -25,7 +28,7 @@ import {
 
 export type LookOffset = { yaw: number; pitch: number }
 
-type Mode = "hold" | "enter" | "lerp" | "toRoom" | "room" | "fromRoom"
+type Mode = "hold" | "enter" | "lerp" | "leaving" | "toRoom" | "room" | "fromRoom"
 
 export function Director({
   phase,
@@ -39,6 +42,7 @@ export function Director({
   onSat,
   onRoomReached,
   onLeftRoom,
+  onLeftHall,
 }: {
   phase: Phase
   phaseAt: number
@@ -51,6 +55,7 @@ export function Director({
   onSat: () => void
   onRoomReached: () => void
   onLeftRoom: () => void
+  onLeftHall: () => void
 }) {
   const look = useRef(new Vector3(...OUTSIDE.look))
   const fromP = useRef(new Vector3())
@@ -68,12 +73,15 @@ export function Director({
     toFov: OUTSIDE.fov,
     notified: false,
     fade: 0,
+    closing: 0,
+    fromYaw: 0,
+    fromPitch: 0,
   })
-  const callbacks = useRef({ onEntered, onSat, onRoomReached, onLeftRoom })
+  const callbacks = useRef({ onEntered, onSat, onRoomReached, onLeftRoom, onLeftHall })
 
   useEffect(() => {
-    callbacks.current = { onEntered, onSat, onRoomReached, onLeftRoom }
-  }, [onEntered, onSat, onRoomReached, onLeftRoom])
+    callbacks.current = { onEntered, onSat, onRoomReached, onLeftRoom, onLeftHall }
+  }, [onEntered, onSat, onRoomReached, onLeftRoom, onLeftHall])
 
   useFrame((state, delta) => {
     const camera = state.camera as PerspectiveCamera
@@ -104,6 +112,17 @@ export function Director({
         toP.current.set(...INSIDE.position)
         toL.current.set(...INSIDE.look)
         motion.toFov = INSIDE.fov
+      } else if (phase === "leaving") {
+        motion.mode = "leaving"
+        motion.duration = leaveDuration(reduced)
+        const dx = fromL.current.x - fromP.current.x
+        const dy = fromL.current.y - fromP.current.y
+        const dz = fromL.current.z - fromP.current.z
+        motion.fromYaw = Math.atan2(dx, dz)
+        motion.fromPitch = Math.atan2(dy, Math.hypot(dx, dz))
+        toP.current.set(...HALL_EXIT.position)
+        toL.current.set(...HALL_EXIT.look)
+        motion.toFov = OUTSIDE.fov
       } else if (phase === "toRoom") {
         motion.mode = "toRoom"
         motion.duration = toRoomDuration(reduced)
@@ -126,7 +145,8 @@ export function Director({
       } else {
         motion.mode = "hold"
         motion.toFov = OUTSIDE.fov
-        if (previous === "fromRoom") {
+        motion.closing = previous === "leaving" ? 1 : 0
+        if (previous === "fromRoom" || previous === "leaving") {
           motion.fade = 1
           camera.fov = OUTSIDE.fov
           camera.updateProjectionMatrix()
@@ -138,7 +158,11 @@ export function Director({
 
     const elapsed = (performance.now() - phaseAt) / 1000
     const openingElapsed = phase === "opening" ? elapsed : 0
-    openRef.current = doorAmount(phase, openingElapsed, reduced)
+    openRef.current = phase === "leaving" ? 1 : doorAmount(phase, openingElapsed, reduced)
+    if (phase === "arrival" && motion.closing > 0) {
+      if (motion.fade < 0.55) motion.closing = Math.max(0, motion.closing - delta / closeDuration(reduced))
+      openRef.current = smootherstep(motion.closing)
+    }
 
     if (phase === "toRoom") {
       roomDoorRef.current = smootherstep(Math.min(1, elapsed / roomDoorDuration(reduced)))
@@ -171,6 +195,33 @@ export function Director({
       if (t >= 1 && phase === "sitting" && !motion.notified) {
         motion.notified = true
         callbacks.current.onSat()
+      }
+    } else if (motion.mode === "leaving") {
+      motion.elapsed += delta
+      const t = Math.min(1, motion.elapsed / motion.duration)
+      const turn = smootherstep(t / 0.42)
+      const walk = smootherstep((t - 0.22) / 0.78)
+      camera.position.lerpVectors(fromP.current, toP.current, walk)
+      camera.position.y += Math.sin(walk * Math.PI * 5) * 0.012
+      const toYaw = Math.atan2(toL.current.x - toP.current.x, toL.current.z - toP.current.z)
+      let turnBy = toYaw - motion.fromYaw
+      while (turnBy > Math.PI) turnBy -= Math.PI * 2
+      while (turnBy <= -Math.PI) turnBy += Math.PI * 2
+      const toPitch = Math.atan2(
+        toL.current.y - toP.current.y,
+        Math.hypot(toL.current.x - toP.current.x, toL.current.z - toP.current.z),
+      )
+      const yaw = motion.fromYaw + turnBy * turn
+      const pitch = motion.fromPitch + (toPitch - motion.fromPitch) * turn
+      look.current.set(
+        camera.position.x + Math.sin(yaw) * Math.cos(pitch) * 4,
+        camera.position.y + Math.sin(pitch) * 4,
+        camera.position.z + Math.cos(yaw) * Math.cos(pitch) * 4,
+      )
+      motion.fade = Math.min(1, Math.max(0, (t - 0.6) / 0.34))
+      if (motion.elapsed >= motion.duration && !motion.notified) {
+        motion.notified = true
+        callbacks.current.onLeftHall()
       }
     } else if (motion.mode === "toRoom") {
       const lead = reduced ? 0.05 : 0.35

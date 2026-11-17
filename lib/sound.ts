@@ -1,12 +1,15 @@
 import { Vector3 } from "three"
 import {
   BACK_Z,
+  HALL_EXIT,
   INSIDE,
   OUTSIDE,
   ROOM_APPROACH,
+  closeDuration,
   doorDuration,
   enterDuration,
   fromRoomDuration,
+  leaveDuration,
   riseDuration,
   sampleEnter,
   sitDuration,
@@ -441,6 +444,40 @@ class HallSound {
       { clip: "chair-stand", at: 0.1, gain: 0.34, pan: side, wet: 0.22 },
       ...this.steps(steps, () => 0.28),
     ])
+  }
+
+  leaveHall(reduced: boolean) {
+    this.silence(this.writing)
+    this.silence(this.playing)
+    const total = leaveDuration(reduced)
+    const begin = total * 0.22
+    const points: { time: number; x: number; z: number }[] = []
+    for (let i = 0; i <= 120; i += 1) {
+      const t = i / 120
+      const e = t * t * t * (t * (t * 6 - 15) + 10)
+      points.push({
+        time: begin + t * (total - begin),
+        x: INSIDE.position[0] + (HALL_EXIT.position[0] - INSIDE.position[0]) * e,
+        z: INSIDE.position[2] + (HALL_EXIT.position[2] - INSIDE.position[2]) * e,
+      })
+    }
+    const steps = horizontalWalk(points, hallSurface, 0.85).filter((step) => step.time < total * 0.94)
+    this.play(this.steps(steps, (surface) => (surface === "stone" ? 0.14 : 0.3)))
+  }
+
+  // Timed to the Director: the leaves start closing once the fade from black drops below 0.55.
+  hallDoorsClose(reduced: boolean) {
+    this.silence(this.playing)
+    const start = 0.45 * (reduced ? 0.25 : 0.7)
+    const shut = start + closeDuration(reduced) * 0.88
+    this.play([
+      { clip: "step-stone-1", at: 0.05, gain: 0.32, pan: 0.1, wet: 0.14 },
+      { clip: "door-creak-a", at: start + 0.1, gain: reduced ? 0.1 : 0.16, pan: -0.4, wet: 0.2, rate: 0.86 },
+      { clip: "door-close", at: shut, gain: 0.34, pan: -0.3, wet: 0.16, rate: 0.96 },
+      { clip: "door-close", at: shut + (reduced ? 0.03 : 0.08), gain: 0.3, pan: 0.3, wet: 0.16, rate: 0.92 },
+      { clip: "door-latch", at: shut + (reduced ? 0.1 : 0.3), gain: 0.3, pan: 0, wet: 0.12, rate: 0.94 },
+    ])
+    this.roomLevel(ROOM_LEVEL, 0.6)
   }
 
   toRoom(reduced: boolean) {

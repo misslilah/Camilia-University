@@ -43,7 +43,7 @@ function Block({
 export function Bedroom({ phase }: { phase: Phase }) {
   const active = phase === "room" || phase === "fromRoom"
   return (
-    <group position={ROOM_ORIGIN} visible={phase !== "inside" && phase !== "sitting" && phase !== "opening"}>
+    <group position={ROOM_ORIGIN} visible={phase !== "inside" && phase !== "sitting" && phase !== "opening" && phase !== "leaving"}>
       <Shell />
       <Bed />
       <Nightstand />

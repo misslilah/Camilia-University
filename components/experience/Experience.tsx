@@ -114,6 +114,18 @@ export default function Experience() {
     go("fromRoom")
   }, [go, phase, reduced])
 
+  const leaveHall = useCallback(() => {
+    if (phase !== "inside") return
+    setHovered(null)
+    sound.leaveHall(reduced)
+    go("leaving")
+  }, [go, phase, reduced])
+
+  const hallLeft = useCallback(() => {
+    sound.hallDoorsClose(reduced)
+    go("arrival")
+  }, [go, reduced])
+
   const roomLeft = useCallback(() => {
     sound.hallReturn()
     go("arrival")
@@ -212,6 +224,7 @@ export default function Experience() {
         setFocused((current) => neighbor(current, dir))
       }
       if (phase === "inside" && event.key === "Enter" && focused) pickSeat(focused)
+      if (phase === "inside" && event.key === "Escape") leaveHall()
       if (phase === "sitting" && event.key === "Escape") {
         if (chapterId) closeChapter()
         else stand()
@@ -223,7 +236,7 @@ export default function Experience() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [chapterId, closeChapter, focused, leaveRoom, openChapter, openDoors, phase, pickSeat, settled, skip, stand])
+  }, [chapterId, closeChapter, focused, leaveHall, leaveRoom, openChapter, openDoors, phase, pickSeat, settled, skip, stand])
 
   if (!webgl) return <FlatCampus />
 
@@ -284,6 +297,7 @@ export default function Experience() {
           lookRef={lookRef}
           onRoomReached={roomReached}
           onLeftRoom={roomLeft}
+          onLeftHall={hallLeft}
           onEntered={() => go("inside")}
           onSat={() => {
             setSettled(true)
@@ -302,6 +316,7 @@ export default function Experience() {
         onStand={stand}
         onRoom={enterRoom}
         onLeaveRoom={leaveRoom}
+        onLeaveHall={leaveHall}
         onSelect={openChapter}
         onBack={closeChapter}
         muted={muted}

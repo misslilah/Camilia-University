@@ -1,6 +1,14 @@
 export type Vec3 = [number, number, number]
 
-export type Phase = "arrival" | "opening" | "inside" | "sitting" | "toRoom" | "room" | "fromRoom"
+export type Phase =
+  | "arrival"
+  | "opening"
+  | "inside"
+  | "sitting"
+  | "leaving"
+  | "toRoom"
+  | "room"
+  | "fromRoom"
 
 export type Chapter = {
   id: string
@@ -69,6 +77,20 @@ export const ROOM_VIEW = {
   position: [ROOM_ORIGIN[0] + 0.3, 1.56, ROOM_ORIGIN[2] + 1.62] as Vec3,
   look: [ROOM_ORIGIN[0] - 0.2, 1.02, ROOM_ORIGIN[2] - 2] as Vec3,
   fov: 60,
+}
+
+// Just past the double doors, facing back out along the hallway.
+export const HALL_EXIT = {
+  position: [0, SILL_Y + 1.58, BACK_Z + 2.4] as Vec3,
+  look: [0, SILL_Y + 1.3, BACK_Z + 9] as Vec3,
+}
+
+export function leaveDuration(reduced: boolean) {
+  return reduced ? 0.5 : 2.8
+}
+
+export function closeDuration(reduced: boolean) {
+  return reduced ? 0.3 : 1.6
 }
 
 export function toRoomDuration(reduced: boolean) {

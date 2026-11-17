@@ -15,6 +15,7 @@ export function Hud({
   onStand,
   onRoom,
   onLeaveRoom,
+  onLeaveHall,
   onSelect,
   onBack,
   muted,
@@ -29,6 +30,7 @@ export function Hud({
   onStand: () => void
   onRoom: () => void
   onLeaveRoom: () => void
+  onLeaveHall: () => void
   onSelect: (id: string) => void
   onBack: () => void
   muted: boolean
@@ -152,6 +154,24 @@ export function Hud({
         </div>
       )}
 
+      <div
+        aria-hidden={phase !== "inside"}
+        inert={phase !== "inside"}
+        className={cn(
+          "absolute top-20 left-5 transition-opacity duration-500 sm:top-auto sm:bottom-8 sm:left-16",
+          phase === "inside" ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+      >
+        <Button
+          variant="outline"
+          className="pointer-events-auto rounded-full border-[#f3ead7]/30 bg-[#1a120e]/55 text-[#f6f0e6] backdrop-blur-md hover:bg-[#f3ead7] hover:text-[#2a1c14]"
+          onClick={onLeaveHall}
+        >
+          <ArrowLeft />
+          Back to the hallway
+        </Button>
+      </div>
+
       {phase === "sitting" && (
         <div className="absolute inset-x-0 bottom-5 flex items-end justify-between gap-3 pr-4 pl-16 sm:bottom-7 sm:pr-7">
           <Button
@@ -184,7 +204,8 @@ export function Hud({
       <p className="sr-only" aria-live="polite">
         {phase === "arrival" && "You are at the doors of Camilia University."}
         {phase === "opening" && "The doors are opening."}
-        {phase === "inside" && "Choose a chair in the hall."}
+        {phase === "inside" && "Choose a chair in the hall. Press Escape to go back to the hallway."}
+        {phase === "leaving" && "You walk back out to the hallway."}
         {phase === "toRoom" && "You open the bedroom door."}
         {phase === "room" &&
           "You are in the bedroom: blue walls, a bed under the window, a desk with a computer, and a wardrobe. Press Escape to go back to the hallway."}
