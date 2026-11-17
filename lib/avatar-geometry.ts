@@ -490,7 +490,7 @@ function body(m: Model, parts: Part[]) {
   }
   m.arms.forEach((arm, i) => {
     parts.push({ geometry: tube(sample(arm, 0, 1, 0, 34), 22, { capStart: true, capEnd: true }), material: "skin" })
-    const [shoulder, elbow, wrist] = m.armPoints[i]
+    const [, elbow, wrist] = m.armPoints[i]
     const dir = wrist.clone().sub(elbow).normalize()
     parts.push({
       geometry: ellipsoid(wrist.clone().addScaledVector(dir, 0.06), new Vector3(0.021, 0.07, 0.04).multiplyScalar(m.limbW * (m.sex === "woman" ? 0.92 : 1)), { dir }),
@@ -637,6 +637,7 @@ function top(m: Model, c: Shape, parts: Part[]) {
   add(torsoShell(m, hem, neckTop, off))
   const t1 = c.top === "tee" ? 0.36 : 0.95
   for (let side = 0; side < 2; side += 1) {
+    if (c.outer !== "none") break
     add(sleeve(m, side, t1, off - 0.004, c.top === "tee" ? 0.006 : shirt ? 0.003 : 0))
     add(shoulderCap(m, side, off - 0.006))
   }
@@ -710,7 +711,7 @@ function bottom(m: Model, c: Shape, parts: Part[]) {
       const r = Math.max(base, min(t) * (m.sex === "woman" ? 0.96 : 1))
       return { c: frame.c, x: frame.x.setLength(r), z: frame.z.setLength(r) }
     })
-    add(tube(frames, 26))
+    add(tube(frames, 26, { capStart: true }))
   }
 }
 
@@ -792,7 +793,7 @@ function underwear(m: Model, parts: Part[]) {
   const top = m.sex === "woman" ? 0.96 : 0.96
   add(torsoShell(m, L.bottom, top, 0.006, { capStart: true }))
   const t1 = m.sex === "woman" ? 0.11 : 0.17
-  for (const leg of m.legs) add(tube(sample(leg, 0, t1, 0.006, 8), 26))
+  for (const leg of m.legs) add(tube(sample(leg, 0, t1, 0.006, 8), 26, { capStart: true }))
   if (m.sex === "woman") {
     add(torsoShell(m, 1.16, 1.305, 0.005, { rings: 18 }))
     for (const side of [-1, 1]) {
