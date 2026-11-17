@@ -423,6 +423,7 @@ function AppWindow({
   const meta = app(win.app)
   const Icon = meta.icon
   const workspace = isWorkspace(win.app)
+  const patreon = win.app === "patreon"
   const area = bounds()
   const width = workspace ? Math.min(win.w, area.w) : Math.min(420, area.w - 24)
   const height = workspace ? Math.min(win.h, area.h) : undefined
@@ -441,7 +442,8 @@ function AppWindow({
       className={cn(
         "absolute flex flex-col overflow-hidden border bg-[#f7f5f0] text-[#1d2433] shadow-[0_24px_60px_rgba(0,0,0,0.45)]",
         maximized ? "rounded-none border-transparent" : "rounded-xl",
-        !maximized && (focused ? "border-white/60" : "border-white/25 opacity-95"),
+        !maximized &&
+          (focused ? (patreon ? "border-[#e7a0ab]" : "border-white/60") : patreon ? "border-[#e7a0ab]/50 opacity-95" : "border-white/25 opacity-95"),
       )}
       style={
         maximized
@@ -453,7 +455,13 @@ function AppWindow({
         className={cn(
           "flex h-10 shrink-0 touch-none items-center gap-2 pr-1.5 pl-3",
           !maximized && "cursor-grab active:cursor-grabbing",
-          focused ? "bg-[#1d2a4a] text-white" : "bg-[#3a4560] text-white/80",
+          patreon
+            ? focused
+              ? "bg-[#c7435c] text-white"
+              : "bg-[#a34b5c] text-white/90"
+            : focused
+              ? "bg-[#1d2a4a] text-white"
+              : "bg-[#3a4560] text-white/80",
         )}
         onDoubleClick={toggleMaximize}
         onPointerDown={(event) => {
@@ -554,7 +562,7 @@ function AppWindow({
             stretch.current = null
           }}
         >
-          <svg viewBox="0 0 16 16" className="h-4 w-4 text-black/35">
+          <svg viewBox="0 0 16 16" className={cn("h-4 w-4", patreon ? "text-[#c7435c]/80" : "text-black/35")}>
             <path d="M14 6 L6 14 M14 10 L10 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
           </svg>
         </div>

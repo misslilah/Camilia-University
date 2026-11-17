@@ -57,7 +57,7 @@ const EMPTY: Record<MediaKind, string> = {
 
 export function Patreon() {
   const library = useLibrary()
-  const [tab, setTab] = useState<MediaKind>("audio")
+  const [tab, setTab] = useState<MediaKind>("video")
   const [busy, setBusy] = useState(false)
   const listed = library.items.filter((item) => item.kind === tab)
 
@@ -78,10 +78,10 @@ export function Patreon() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#f7f5f0] text-[#1d2433]">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-black/10 px-4 py-3">
+    <div className="flex h-full min-h-0 flex-col bg-[#fff6f4] text-[#3d2428]">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#c7435c]/15 px-4 py-3">
         <div role="tablist" aria-label="Patreon library" className="flex items-center gap-1">
-          {(["audio", "video"] as const).map((kind) => (
+          {(["video", "audio"] as const).map((kind) => (
             <button
               key={kind}
               type="button"
@@ -89,8 +89,8 @@ export function Patreon() {
               aria-selected={tab === kind}
               onClick={() => choose(kind)}
               className={cn(
-                "h-8 rounded-lg px-3 text-[13px] font-medium capitalize focus-visible:ring-2 focus-visible:ring-[#c6a15a] focus-visible:outline-none",
-                tab === kind ? "bg-[#1d2a4a] text-white" : "text-[#1d2433]/70 hover:bg-black/5",
+                "h-8 rounded-[10px] px-3 text-[13px] font-medium focus-visible:ring-2 focus-visible:ring-[#c7435c] focus-visible:outline-none",
+                tab === kind ? "bg-[#c7435c] text-white" : "text-[#3d2428]/70 hover:bg-[#c7435c]/10",
               )}
             >
               {kind === "audio" ? "Audio" : "Video"}
@@ -99,7 +99,7 @@ export function Patreon() {
         </div>
         <label
           className={cn(
-            "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-[#1d2a4a] px-3 text-[13px] font-medium text-white hover:bg-[#2a3d68]",
+            "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-[10px] bg-[#c7435c] px-3 text-[13px] font-medium text-white hover:bg-[#b33c52]",
             (!library.ready || busy) && "pointer-events-none opacity-60",
           )}
         >
@@ -123,26 +123,26 @@ export function Patreon() {
       </div>
 
       {library.error && (
-        <p role="alert" className="mx-4 mt-3 rounded-lg bg-[#fde8e8] px-3 py-2 text-sm text-[#8d2b2b]">
+        <p role="alert" className="mx-4 mt-3 rounded-[10px] bg-[#fde8e8] px-3 py-2 text-sm text-[#8d2b2b]">
           {library.error}
         </p>
       )}
 
       <div role="tabpanel" aria-label={tab === "audio" ? "Audio" : "Video"} className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {!library.ready ? (
-          <p className="px-2 py-8 text-center text-sm text-[#1d2433]/60">Opening the library…</p>
+          <p className="px-2 py-8 text-center text-sm text-[#3d2428]/60">Opening the library…</p>
         ) : listed.length === 0 ? (
-          <p className="px-6 py-10 text-center text-sm leading-relaxed text-[#1d2433]/65">{busy ? "Saving the file." : EMPTY[tab]}</p>
+          <p className="px-6 py-10 text-center text-sm leading-relaxed text-[#3d2428]/65">{busy ? "Saving the file." : EMPTY[tab]}</p>
         ) : (
           <ul className="flex flex-col gap-2.5">
             {listed.map((item) => (
-              <li key={item.id} className="rounded-xl border border-black/10 bg-white px-3 py-3">
+              <li key={item.id} className="rounded-[10px] border border-[#c7435c]/15 bg-white px-3 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium" title={item.name}>
                       {item.name}
                     </p>
-                    <p className="mt-0.5 text-xs text-[#1d2433]/60">
+                    <p className="mt-0.5 text-xs text-[#3d2428]/60">
                       {item.duration != null && <span>{formatDuration(item.duration)} · </span>}
                       <span>{formatSize(item.size)}</span>
                       <span> · {formatDate(item.addedAt)}</span>
@@ -152,23 +152,25 @@ export function Patreon() {
                     type="button"
                     aria-label={`Delete ${item.name}`}
                     onClick={() => void deleteMedia(item.id)}
-                    className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg px-2 text-[12px] text-[#8d2b2b] hover:bg-[#fde8e8] focus-visible:ring-2 focus-visible:ring-[#c6a15a] focus-visible:outline-none"
+                    className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[10px] px-2 text-[12px] text-[#8d2b2b] hover:bg-[#fde8e8] focus-visible:ring-2 focus-visible:ring-[#c7435c] focus-visible:outline-none"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     Delete
                   </button>
                 </div>
                 {item.kind === "audio" ? (
-                  <audio controls preload="metadata" src={item.url} aria-label={item.name} className="mt-2 h-9 w-full" />
+                  <audio controls preload="metadata" src={item.url} aria-label={item.name} className="mt-2 h-9 w-full rounded-[10px]" />
                 ) : (
-                  <video
-                    controls
-                    playsInline
-                    preload="metadata"
-                    src={item.url}
-                    aria-label={item.name}
-                    className="mt-2 max-h-48 w-full rounded-lg bg-black"
-                  />
+                  <div className="mt-2 overflow-hidden rounded-[10px] bg-black">
+                    <video
+                      controls
+                      playsInline
+                      preload="metadata"
+                      src={item.url}
+                      aria-label={item.name}
+                      className="max-h-48 w-full bg-black object-contain"
+                    />
+                  </div>
                 )}
               </li>
             ))}
