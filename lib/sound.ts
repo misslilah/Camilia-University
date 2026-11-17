@@ -497,6 +497,40 @@ class HallSound {
     ])
   }
 
+  wardrobeOpen() {
+    this.silence(this.playing)
+    this.play([
+      { clip: "step-wood-2", at: 0, gain: 0.24, pan: 0.15, wet: 0.04, rate: 1.04 },
+      { clip: "door-latch", at: 0.42, gain: 0.22, pan: 0.4, wet: 0.04, rate: 1.45 },
+      { clip: "door-creak-a", at: 0.5, gain: 0.1, pan: 0.45, wet: 0.05, rate: 1.35, length: 0.9 },
+      { clip: "cloth-a", at: 0.95, gain: 0.16, pan: 0.3, wet: 0.03, rate: 1.1 },
+    ])
+  }
+
+  wardrobeClose() {
+    this.silence(this.playing)
+    this.play([
+      { clip: "door-creak-b", at: 0, gain: 0.08, pan: 0.4, wet: 0.05, rate: 1.4, length: 0.7 },
+      { clip: "door-close", at: 0.55, gain: 0.2, pan: 0.4, wet: 0.04, rate: 1.4 },
+      { clip: "step-wood-4", at: 0.85, gain: 0.22, pan: 0.1, wet: 0.04, rate: 1.03 },
+    ])
+  }
+
+  clothes() {
+    this.variant = (this.variant + 1) % 997
+    this.play([
+      {
+        clip: this.variant % 2 ? "cloth-a" : "cloth-b",
+        at: 0,
+        gain: 0.16,
+        pan: 0.2,
+        wet: 0.03,
+        rate: 1.05 + (this.variant % 5) * 0.03,
+        length: 0.45,
+      },
+    ])
+  }
+
   hallReturn() {
     this.silence(this.playing)
     this.play([

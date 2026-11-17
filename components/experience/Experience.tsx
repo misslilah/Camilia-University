@@ -11,11 +11,15 @@ import { Doors } from "@/components/experience/Doors"
 import { Hall, Lights, Motes } from "@/components/experience/Hall"
 import { Hud } from "@/components/experience/Hud"
 import { Seating } from "@/components/experience/Seating"
+import { WardrobePanel } from "@/components/experience/WardrobePanel"
+import { baseCharacter, loadCharacter, saveCharacter, type Character, type Sex } from "@/lib/avatar"
+import { setCursor } from "@/lib/cursor"
 import { FADE_ID } from "@/lib/fade"
 import { sound } from "@/lib/sound"
 import {
   CHAPTERS,
   OUTSIDE,
+  inRoom,
   neighbor,
   seatById,
   type Phase,
@@ -51,6 +55,9 @@ export default function Experience() {
   const roomDoorRef = useRef(0)
   const lookRef = useRef<LookOffset>({ yaw: 0, pitch: 0 })
   const dragRef = useRef<{ x: number; y: number; yaw: number; pitch: number } | null>(null)
+  const [character, setCharacter] = useState<Character | null>(() => loadCharacter())
+  const avatarYawRef = useRef(0)
+  const spinRef = useRef<{ x: number; yaw: number } | null>(null)
 
   useEffect(() => {
     sound.prime(muted)
@@ -114,6 +121,37 @@ export default function Experience() {
     go("fromRoom")
   }, [go, phase, reduced])
 
+  const openWardrobe = useCallback(() => {
+    if (phase !== "room") return
+    setCursor("auto")
+    avatarYawRef.current = 0
+    sound.wardrobeOpen()
+    go("wardrobe")
+  }, [go, phase])
+
+  const closeWardrobe = useCallback(() => {
+    if (phase !== "wardrobe") return
+    spinRef.current = null
+    lookRef.current = { yaw: 0, pitch: 0 }
+    sound.wardrobeClose()
+    go("room")
+  }, [go, phase])
+
+  const updateCharacter = useCallback((next: Character, discrete: boolean) => {
+    setCharacter(next)
+    saveCharacter(next)
+    if (discrete) sound.clothes()
+  }, [])
+
+  const chooseBody = useCallback(
+    (sex: Sex) => updateCharacter(baseCharacter(sex), true),
+    [updateCharacter],
+  )
+
+  const turnAvatar = useCallback((step: number) => {
+    avatarYawRef.current += step
+  }, [])
+
   const leaveHall = useCallback(() => {
     if (phase !== "inside") return
     setHovered(null)
@@ -133,6 +171,14 @@ export default function Experience() {
 
   const look = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (phase === "wardrobe") {
+        const spin = spinRef.current
+        if (spin) {
+          const rect = event.currentTarget.getBoundingClientRect()
+          avatarYawRef.current = spin.yaw + ((event.clientX - spin.x) / rect.width) * 5
+        }
+        return
+      }
       if (phase !== "room") return
       const rect = event.currentTarget.getBoundingClientRect()
       if (event.pointerType === "mouse") {
@@ -198,13 +244,18 @@ export default function Experience() {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target
-      if (target instanceof HTMLElement && target.closest("button, a, input, textarea")) return
+      if (target instanceof HTMLElement && target.closest("button, a, input, textarea, [role=slider], [role=tab]")) return
       if (phase === "arrival" && (event.key === "Enter" || event.key === " ")) {
         event.preventDefault()
         openDoors()
       }
       if (phase === "opening" && event.key === "Escape") skip()
       if (phase === "room" && event.key === "Escape") leaveRoom()
+      if (phase === "wardrobe" && event.key === "Escape") closeWardrobe()
+      if (phase === "wardrobe" && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+        event.preventDefault()
+        turnAvatar(event.key === "ArrowLeft" ? -0.4 : 0.4)
+      }
       if (phase === "room" && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
         event.preventDefault()
         const step = event.key === "ArrowLeft" ? -0.25 : 0.25
@@ -236,7 +287,7 @@ export default function Experience() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [chapterId, closeChapter, focused, leaveHall, leaveRoom, openChapter, openDoors, phase, pickSeat, settled, skip, stand])
+  }, [chapterId, closeChapter, closeWardrobe, focused, leaveHall, leaveRoom, openChapter, openDoors, phase, pickSeat, settled, skip, stand, turnAvatar])
 
   if (!webgl) return <FlatCampus />
 
@@ -251,12 +302,17 @@ export default function Experience() {
         if (phase === "room" && event.pointerType !== "mouse") {
           dragRef.current = { x: event.clientX, y: event.clientY, ...lookRef.current }
         }
+        if (phase === "wardrobe" && event.target instanceof HTMLCanvasElement) {
+          spinRef.current = { x: event.clientX, yaw: avatarYawRef.current }
+        }
       }}
       onPointerUp={() => {
         dragRef.current = null
+        spinRef.current = null
       }}
       onPointerCancel={() => {
         dragRef.current = null
+        spinRef.current = null
       }}
     >
       <Canvas
@@ -271,22 +327,30 @@ export default function Experience() {
         }}
       >
         <color attach="background" args={["#cbb89f"]} />
-        <Lights seated={phase === "sitting"} away={phase === "room" || phase === "fromRoom"} openRef={openRef} />
-        <Hall />
-        <Doors openRef={openRef} phase={phase} onOpen={openDoors} />
-        <RoomDoor phase={phase} amountRef={roomDoorRef} onOpen={enterRoom} />
-        <Bedroom phase={phase} />
-        <Seating phase={phase} activeId={activeId} onHover={setHovered} onPick={pickSeat} />
-        <Motes />
-        <Suspense fallback={null}>
-          <Signage />
-          <Blackboard
-            showMenu={phase === "sitting" && settled}
-            chapterId={chapterId}
-            onSelect={openChapter}
-            onBack={closeChapter}
-          />
-        </Suspense>
+        <Lights seated={phase === "sitting"} away={inRoom(phase)} openRef={openRef} />
+        <group visible={phase !== "wardrobe"}>
+          <Hall />
+          <Doors openRef={openRef} phase={phase} onOpen={openDoors} />
+          <RoomDoor phase={phase} amountRef={roomDoorRef} onOpen={enterRoom} />
+          <Seating phase={phase} activeId={activeId} onHover={setHovered} onPick={pickSeat} />
+          <Motes />
+          <Suspense fallback={null}>
+            <Signage />
+            <Blackboard
+              showMenu={phase === "sitting" && settled}
+              chapterId={chapterId}
+              onSelect={openChapter}
+              onBack={closeChapter}
+            />
+          </Suspense>
+        </group>
+        <Bedroom
+          phase={phase}
+          reduced={reduced}
+          character={character}
+          avatarYawRef={avatarYawRef}
+          onWardrobe={openWardrobe}
+        />
         <Director
           phase={phase}
           phaseAt={phaseAt}
@@ -321,6 +385,14 @@ export default function Experience() {
         onBack={closeChapter}
         muted={muted}
         onToggleSound={toggleSound}
+      />
+      <WardrobePanel
+        open={phase === "wardrobe"}
+        character={character}
+        onChoose={chooseBody}
+        onChange={updateCharacter}
+        onDone={closeWardrobe}
+        onTurn={turnAvatar}
       />
     </div>
   )

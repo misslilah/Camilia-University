@@ -8,6 +8,7 @@ export type Phase =
   | "leaving"
   | "toRoom"
   | "room"
+  | "wardrobe"
   | "fromRoom"
 
 export type Chapter = {
@@ -77,6 +78,46 @@ export const ROOM_VIEW = {
   position: [ROOM_ORIGIN[0] + 0.3, 1.56, ROOM_ORIGIN[2] + 1.62] as Vec3,
   look: [ROOM_ORIGIN[0] - 0.2, 1.02, ROOM_ORIGIN[2] - 2] as Vec3,
   fov: 60,
+}
+
+export function inRoom(phase: Phase) {
+  return phase === "room" || phase === "wardrobe" || phase === "fromRoom"
+}
+
+// Bedroom-local placements for the wardrobe corner.
+export const WARDROBE = {
+  x: ROOM.width / 2 - 0.31,
+  z: -0.95,
+  width: 1.12,
+  depth: 0.6,
+  height: 2.06,
+}
+
+export const MIRROR = {
+  x: ROOM.width / 2 - 0.075,
+  z: 0.32,
+  width: 0.56,
+  height: 1.62,
+  bottom: 0.13,
+}
+
+export const AVATAR_SPOT: Vec3 = [ROOM_ORIGIN[0] + 1.02, 0, ROOM_ORIGIN[2] + MIRROR.z]
+
+export const WARDROBE_VIEW = {
+  wide: {
+    position: [ROOM_ORIGIN[0] - 0.55, 1.4, ROOM_ORIGIN[2] + MIRROR.z] as Vec3,
+    look: [ROOM_ORIGIN[0] + MIRROR.x, 0.98, ROOM_ORIGIN[2] + MIRROR.z + 0.5] as Vec3,
+    fov: 44,
+  },
+  narrow: {
+    position: [ROOM_ORIGIN[0] - 1.35, 1.25, ROOM_ORIGIN[2] + MIRROR.z] as Vec3,
+    look: [ROOM_ORIGIN[0] + MIRROR.x, 0.55, ROOM_ORIGIN[2] + MIRROR.z] as Vec3,
+    fov: 64,
+  },
+}
+
+export function wardrobeDuration(reduced: boolean) {
+  return reduced ? 0.3 : 1.35
 }
 
 export function leaveDuration(reduced: boolean) {
@@ -287,7 +328,7 @@ export function riseDuration(reduced: boolean) {
 }
 
 export function doorAmount(phase: Phase, openingElapsed: number, reduced: boolean) {
-  if (phase === "arrival" || phase === "toRoom" || phase === "room" || phase === "fromRoom") return 0
+  if (phase === "arrival" || phase === "toRoom" || inRoom(phase)) return 0
   if (phase !== "opening") return 1
   const duration = doorDuration(reduced)
   const t = Math.min(1, Math.max(0, openingElapsed / duration))

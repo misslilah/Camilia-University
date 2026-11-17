@@ -10,9 +10,11 @@ import {
   ROOM_APPROACH,
   ROOM_VIEW,
   SIT_FOV,
+  WARDROBE_VIEW,
   doorAmount,
   enterDuration,
   fromRoomDuration,
+  inRoom,
   leaveDuration,
   riseDuration,
   roomDoorDuration,
@@ -20,13 +22,14 @@ import {
   sitDuration,
   smootherstep,
   toRoomDuration,
+  wardrobeDuration,
   type Phase,
   type Seat,
 } from "@/lib/scene"
 
 export type LookOffset = { yaw: number; pitch: number }
 
-type Mode = "hold" | "enter" | "lerp" | "leaving" | "toRoom" | "room" | "fromRoom"
+type Mode = "hold" | "enter" | "lerp" | "leaving" | "toRoom" | "room" | "wardrobe" | "fromRoom"
 
 export function Director({
   phase,
@@ -71,6 +74,7 @@ export function Director({
     toFov: OUTSIDE.fov,
     notified: false,
     fade: 0,
+    blend: 1,
   })
   const callbacks = useRef({ onEntered, onSat, onRoomReached, onLeftRoom, onLeftHall })
 
@@ -118,14 +122,23 @@ export function Director({
         motion.toFov = OUTSIDE.fov + 6
       } else if (phase === "room") {
         motion.mode = "room"
-        motion.fade = 1
-        camera.position.set(...ROOM_VIEW.position)
         roomBase.current.set(...ROOM_VIEW.look)
-        look.current.copy(roomBase.current)
         roomTurn.current = { yaw: 0, pitch: 0 }
         motion.toFov = narrow ? 74 : ROOM_VIEW.fov
-        camera.fov = motion.toFov
-        camera.updateProjectionMatrix()
+        motion.duration = wardrobeDuration(reduced)
+        if (previous === "wardrobe") {
+          motion.blend = 0
+        } else {
+          motion.blend = 1
+          motion.fade = 1
+          camera.position.set(...ROOM_VIEW.position)
+          look.current.copy(roomBase.current)
+          camera.fov = motion.toFov
+          camera.updateProjectionMatrix()
+        }
+      } else if (phase === "wardrobe") {
+        motion.mode = "wardrobe"
+        motion.duration = wardrobeDuration(reduced)
       } else if (phase === "fromRoom") {
         motion.mode = "fromRoom"
         motion.duration = fromRoomDuration(reduced)
@@ -148,7 +161,7 @@ export function Director({
 
     if (phase === "toRoom") {
       roomDoorRef.current = smootherstep(Math.min(1, elapsed / roomDoorDuration(reduced)))
-    } else if (phase === "room" || phase === "fromRoom") {
+    } else if (inRoom(phase)) {
       roomDoorRef.current = 1
     } else {
       roomDoorRef.current = Math.max(0, roomDoorRef.current - delta * 1.4)
@@ -204,20 +217,43 @@ export function Director({
       roomTurn.current.yaw += (goal.yaw - roomTurn.current.yaw) * ease
       roomTurn.current.pitch += (goal.pitch - roomTurn.current.pitch) * ease
       const time = performance.now() / 1000
-      camera.position.set(
+      toP.current.set(
         ROOM_VIEW.position[0] + Math.sin(time * 0.3) * 0.012,
         ROOM_VIEW.position[1] + Math.sin(time * 0.45) * 0.008,
         ROOM_VIEW.position[2],
       )
-      const dx = roomBase.current.x - camera.position.x
-      const dz = roomBase.current.z - camera.position.z
+      const dx = roomBase.current.x - toP.current.x
+      const dz = roomBase.current.z - toP.current.z
       const cos = Math.cos(roomTurn.current.yaw)
       const sin = Math.sin(roomTurn.current.yaw)
-      look.current.set(
-        camera.position.x + dx * cos - dz * sin,
+      toL.current.set(
+        toP.current.x + dx * cos - dz * sin,
         roomBase.current.y + roomTurn.current.pitch * 2.4,
-        camera.position.z + dx * sin + dz * cos,
+        toP.current.z + dx * sin + dz * cos,
       )
+      if (motion.blend < 1) {
+        motion.blend = Math.min(1, motion.blend + delta / motion.duration)
+        const eased = smootherstep(motion.blend)
+        camera.position.lerpVectors(fromP.current, toP.current, eased)
+        look.current.lerpVectors(fromL.current, toL.current, eased)
+      } else {
+        camera.position.copy(toP.current)
+        look.current.copy(toL.current)
+      }
+    } else if (motion.mode === "wardrobe") {
+      motion.elapsed += delta
+      const pose = narrow ? WARDROBE_VIEW.narrow : WARDROBE_VIEW.wide
+      motion.toFov = pose.fov
+      const eased = smootherstep(Math.min(1, motion.elapsed / motion.duration))
+      const time = performance.now() / 1000
+      toP.current.set(
+        pose.position[0],
+        pose.position[1] + (reduced ? 0 : Math.sin(time * 0.45) * 0.006),
+        pose.position[2] + (reduced ? 0 : Math.sin(time * 0.3) * 0.008),
+      )
+      toL.current.set(...pose.look)
+      camera.position.lerpVectors(fromP.current, toP.current, eased)
+      look.current.lerpVectors(fromL.current, toL.current, eased)
     } else if (motion.mode === "fromRoom") {
       motion.elapsed += delta
       motion.fade = Math.min(1, motion.elapsed / motion.duration)

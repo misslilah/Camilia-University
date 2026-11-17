@@ -1,11 +1,26 @@
 "use client"
 
-import { Suspense, useMemo, useRef } from "react"
-import { useFrame } from "@react-three/fiber"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
+import { useFrame, useThree } from "@react-three/fiber"
 import { Text } from "@react-three/drei"
-import { BackSide, DoubleSide, Object3D, type Group, type PointLight, type SpotLight } from "three"
+import { BackSide, DoubleSide, Object3D, PlaneGeometry, type Group, type PointLight, type SpotLight } from "three"
+import { Reflector } from "three/examples/jsm/objects/Reflector.js"
+import { Avatar } from "@/components/experience/Avatar"
+import { AVATAR_LAYER, type Character } from "@/lib/avatar"
 import { setCursor } from "@/lib/cursor"
-import { ROOM, ROOM_DOOR, ROOM_ORIGIN, SERIF_FONT, SILL_Y, type Phase } from "@/lib/scene"
+import {
+  AVATAR_SPOT,
+  MIRROR,
+  ROOM,
+  ROOM_DOOR,
+  ROOM_ORIGIN,
+  SERIF_FONT,
+  SILL_Y,
+  WARDROBE,
+  inRoom,
+  smootherstep,
+  type Phase,
+} from "@/lib/scene"
 import { getRoomTextures, getTextures } from "@/lib/textures"
 
 const HALF_W = ROOM.width / 2
@@ -40,18 +55,43 @@ function Block({
   )
 }
 
-export function Bedroom({ phase }: { phase: Phase }) {
-  const active = phase === "room" || phase === "fromRoom"
+export function Bedroom({
+  phase,
+  reduced,
+  character,
+  avatarYawRef,
+  onWardrobe,
+}: {
+  phase: Phase
+  reduced: boolean
+  character: Character | null
+  avatarYawRef: { current: number }
+  onWardrobe: () => void
+}) {
+  const active = inRoom(phase)
   return (
-    <group position={ROOM_ORIGIN} visible={phase !== "inside" && phase !== "sitting" && phase !== "opening" && phase !== "leaving"}>
-      <Shell />
-      <Bed />
-      <Nightstand />
-      <Desk />
-      <DeskChair />
-      <Wardrobe />
-      <Decor />
-      <RoomLights active={active} />
+    <group>
+      <group position={ROOM_ORIGIN} visible={phase !== "inside" && phase !== "sitting" && phase !== "opening" && phase !== "leaving"}>
+        <Shell />
+        <Bed />
+        <Nightstand />
+        <Desk />
+        <DeskChair />
+        <Wardrobe phase={phase} onOpen={onWardrobe} reduced={reduced} />
+        <Mirror lit={active} />
+        <Decor />
+        <RoomLights active={active} />
+      </group>
+      {character && (
+        <Avatar
+          character={character}
+          visible={phase === "wardrobe"}
+          position={AVATAR_SPOT}
+          facing={Math.PI / 2}
+          yawRef={avatarYawRef}
+          reduced={reduced}
+        />
+      )}
     </group>
   )
 }
@@ -328,46 +368,227 @@ function DeskChair() {
   )
 }
 
-function Wardrobe() {
-  const w = 1.12
-  const d = 0.6
-  const h = 2.06
-  const x = HALF_W - d / 2 - 0.01
-  const z = -0.95
+const HANGING = [
+  { z: -0.4, color: "#eeece6", length: 0.72 },
+  { z: -0.29, color: "#26334a", length: 0.86 },
+  { z: -0.18, color: "#9c9d9f", length: 0.7 },
+  { z: -0.06, color: "#b0875a", length: 1.02 },
+  { z: 0.06, color: "#6d8fb5", length: 0.74 },
+  { z: 0.17, color: "#202024", length: 0.9 },
+  { z: 0.27, color: "#d9c9ae", length: 0.68 },
+  { z: 0.37, color: "#5d7598", length: 0.8 },
+]
+
+const FOLDED = [
+  ["#28334d", "#56729b", "#c3b59b"],
+  ["#eeece6", "#8b9a7c", "#6f2534", "#9c9d9f"],
+]
+
+function Wardrobe({
+  phase,
+  onOpen,
+  reduced,
+}: {
+  phase: Phase
+  onOpen: () => void
+  reduced: boolean
+}) {
+  const { width: w, depth: d, height: h, x, z } = WARDROBE
   const wood = "#b98d5d"
+  const inside = "#dcc39e"
+  const t = 0.022
+  const enabled = phase === "room"
+  const [hover, setHover] = useState(false)
+  const doors = useRef<(Group | null)[]>([])
+  const amount = useRef(0)
+  const glow = hover && enabled ? "#5a3a16" : "#000000"
+
+  useEffect(() => {
+    if (!enabled) setCursor("auto")
+  }, [enabled])
+
+  useFrame((_, delta) => {
+    const target = phase === "wardrobe" ? 1 : 0
+    const speed = reduced ? 6 : target ? 1.25 : 1.6
+    amount.current += Math.sign(target - amount.current) * Math.min(Math.abs(target - amount.current), delta * speed)
+    const eased = smootherstep(amount.current)
+    doors.current.forEach((door, i) => {
+      if (door) door.rotation.y = (i === 0 ? -1 : 1) * eased * 1.78
+    })
+  })
+
   return (
-    <group position={[x, 0, z]}>
-      <Block box={[0, h / 2 + 0.06, 0, d, h, w]} color={wood} roughness={0.62} />
+    <group
+      position={[x, 0, z]}
+      onClick={(event) => {
+        event.stopPropagation()
+        if (enabled && event.delta < 10) onOpen()
+      }}
+      onPointerOver={(event) => {
+        event.stopPropagation()
+        if (!enabled) return
+        setHover(true)
+        setCursor("pointer")
+      }}
+      onPointerOut={() => {
+        setHover(false)
+        setCursor("auto")
+      }}
+    >
+      <Block box={[d / 2 - t / 2, h / 2 + 0.06, 0, t, h, w]} color={inside} roughness={0.7} />
+      {[-1, 1].map((side) => (
+        <mesh key={side} position={[0, h / 2 + 0.06, side * (w / 2 - t / 2)]} castShadow receiveShadow>
+          <boxGeometry args={[d, h, t]} />
+          <meshStandardMaterial color={wood} roughness={0.62} emissive={glow} emissiveIntensity={0.35} />
+        </mesh>
+      ))}
+      <Block box={[0, 0.06 + t / 2, 0, d, t, w - 2 * t]} color={inside} roughness={0.7} />
+      <Block box={[0, h + 0.06 - t / 2, 0, d, t, w - 2 * t]} color={wood} roughness={0.62} />
+      <Block box={[0.01, 1.92, 0, d - 0.04, 0.02, w - 2 * t]} color={inside} roughness={0.7} />
+      <Block box={[-d / 2 + 0.03, 0.03 + 0.06, 0, 0.02, 0.06, w - 2 * t]} color={wood} shadow={false} />
       {[-w / 2 + 0.06, w / 2 - 0.06].map((fz) =>
         [-d / 2 + 0.05, d / 2 - 0.05].map((fx) => (
           <Block key={`${fx}-${fz}`} box={[fx, 0.03, fz, 0.06, 0.06, 0.06]} color="#7a5634" />
         )),
       )}
       <Block box={[0.02, h + 0.1, 0, d + 0.06, 0.04, w + 0.06]} color="#a47a4d" roughness={0.6} />
-      {[-1, 1].map((side) => (
-        <group key={side}>
-          <Block
-            box={[-d / 2 - 0.012, h / 2 + 0.06, side * (w / 4), 0.024, h - 0.06, w / 2 - 0.012]}
-            color="#c49868"
-            roughness={0.55}
-          />
-          {[0.52, 1.5].map((py) => (
-            <Block
-              key={py}
-              box={[-d / 2 - 0.026, py + 0.06, side * (w / 4), 0.006, 0.78, w / 2 - 0.14]}
-              color="#b38658"
-              roughness={0.6}
-              shadow={false}
-            />
-          ))}
-          <mesh position={[-d / 2 - 0.05, 1.12, side * 0.045]} castShadow>
-            <cylinderGeometry args={[0.009, 0.009, 0.2, 10]} />
-            <meshStandardMaterial color="#3a3d44" metalness={0.8} roughness={0.25} />
+
+      <mesh position={[0.02, 1.8, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.011, 0.011, w - 2 * t, 12]} />
+        <meshStandardMaterial color="#c9ccd1" metalness={0.85} roughness={0.25} />
+      </mesh>
+      {HANGING.map((item) => (
+        <group key={item.z} position={[0.02, 1.8, item.z]}>
+          <mesh position={[0, 0.02, 0]} rotation={[0, Math.PI / 2, 0]}>
+            <torusGeometry args={[0.022, 0.003, 6, 16, Math.PI * 1.3]} />
+            <meshStandardMaterial color="#8d9198" metalness={0.8} roughness={0.3} />
           </mesh>
+          <Block box={[0, -0.03, 0, 0.4, 0.016, 0.012]} color="#7a5634" shadow={false} />
+          <mesh position={[0, -0.04 - item.length / 2, 0]} castShadow>
+            <boxGeometry args={[0.42, item.length, 0.04]} />
+            <meshStandardMaterial color={item.color} roughness={0.9} />
+          </mesh>
+        </group>
+      ))}
+      {FOLDED.map((stack, i) =>
+        stack.map((color, j) => (
+          <Block
+            key={`${i}-${j}`}
+            box={[0.02, 1.93 + 0.022 + j * 0.034, (i === 0 ? -0.24 : 0.2), 0.3, 0.032, 0.34]}
+            color={color}
+            roughness={0.92}
+            shadow={false}
+          />
+        )),
+      )}
+      {[-0.32, -0.14].map((sz) => (
+        <group key={sz} position={[-0.06, 0.08, sz]}>
+          <Block box={[0, 0.04, -0.04, 0.24, 0.07, 0.08]} color="#f1f0eb" />
+          <Block box={[0, 0.04, 0.05, 0.24, 0.07, 0.08]} color="#f1f0eb" />
+        </group>
+      ))}
+
+      {[-1, 1].map((side, i) => (
+        <group
+          key={side}
+          ref={(node) => {
+            doors.current[i] = node
+          }}
+          position={[-d / 2 - 0.012, h / 2 + 0.06, side * (w / 2 - 0.006)]}
+        >
+          <group position={[0, 0, -side * (w / 4 - 0.003)]}>
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={[0.024, h - 0.06, w / 2 - 0.012]} />
+              <meshStandardMaterial color="#c49868" roughness={0.55} emissive={glow} emissiveIntensity={0.35} />
+            </mesh>
+            {[0.52, 1.5].map((py) => (
+              <mesh key={py} position={[-0.014, py + 0.06 - (h / 2 + 0.06), 0]}>
+                <boxGeometry args={[0.006, 0.78, w / 2 - 0.14]} />
+                <meshStandardMaterial color="#b38658" roughness={0.6} emissive={glow} emissiveIntensity={0.35} />
+              </mesh>
+            ))}
+            <mesh position={[0.013, 0, 0]}>
+              <boxGeometry args={[0.002, h - 0.1, w / 2 - 0.05]} />
+              <meshStandardMaterial color={inside} roughness={0.7} />
+            </mesh>
+            <mesh position={[-0.038, 1.12 - (h / 2 + 0.06), -side * (w / 4 - 0.05)]} castShadow>
+              <cylinderGeometry args={[0.009, 0.009, 0.2, 10]} />
+              <meshStandardMaterial color="#3a3d44" metalness={0.8} roughness={0.25} />
+            </mesh>
+          </group>
         </group>
       ))}
       <Block box={[0, h + 0.2, 0.12, 0.42, 0.16, 0.5]} color="#c9a57a" roughness={0.85} />
       <Block box={[0, h + 0.33, 0.05, 0.36, 0.1, 0.42]} color="#5d7ea8" roughness={0.85} />
+    </group>
+  )
+}
+
+function Mirror({ lit }: { lit: boolean }) {
+  const { x, z, width, height, bottom } = MIRROR
+  const cy = bottom + height / 2
+  const frame = "#b98d5d"
+  const lamp = useRef<PointLight>(null)
+  const { size, viewport } = useThree()
+  const reflector = useMemo(() => {
+    const glass = new Reflector(new PlaneGeometry(width, height), {
+      textureWidth: 512,
+      textureHeight: 512,
+      color: 0xe4e8eb,
+      clipBias: 0.003,
+      multisample: 4,
+    })
+    glass.position.set(x, cy, z)
+    glass.rotation.y = -Math.PI / 2
+    return glass
+  }, [x, z, width, height, cy])
+
+  useEffect(() => () => reflector.dispose(), [reflector])
+
+  // The reflector renders the whole mirrored view, so it needs the canvas resolution.
+  useEffect(() => {
+    const dpr = Math.min(viewport.dpr, 1.5)
+    reflector.getRenderTarget().setSize(Math.round(size.width * dpr), Math.round(size.height * dpr))
+  }, [reflector, size.width, size.height, viewport.dpr])
+
+  useFrame(({ camera }) => {
+    reflector.getReflectionCamera(camera).layers.enable(AVATAR_LAYER)
+    if (lamp.current) lamp.current.intensity = lit ? 1.4 : 0
+  })
+
+  const bar = 0.045
+  return (
+    <group>
+      <primitive object={reflector} />
+      <Block box={[x + 0.018, cy, z, 0.03, height + 0.02, width + 0.02]} color="#2a2b30" shadow={false} />
+      {[
+        [x + 0.008, cy, z - width / 2 - bar / 2, 0.04, height + bar * 2, bar],
+        [x + 0.008, cy, z + width / 2 + bar / 2, 0.04, height + bar * 2, bar],
+        [x + 0.008, bottom - bar / 2, z, 0.04, bar, width],
+        [x + 0.008, bottom + height + bar / 2, z, 0.04, bar, width],
+      ].map((box, i) => (
+        <Block key={i} box={box as Box} color={frame} roughness={0.55} />
+      ))}
+      {[-1, 1].map((side) => (
+        <Block
+          key={side}
+          box={[x - 0.06, 0.035, z + side * (width / 2 - 0.02), 0.2, 0.05, 0.05]}
+          color="#7a5634"
+          roughness={0.6}
+        />
+      ))}
+      <group position={[x - 0.02, bottom + height + 0.17, z]}>
+        <Block box={[0.02, 0, 0, 0.02, 0.05, 0.05]} color="#c6a15a" metalness={0.75} roughness={0.28} shadow={false} />
+        <mesh position={[-0.06, -0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.022, 0.022, 0.34, 18]} />
+          <meshStandardMaterial color="#c6a15a" metalness={0.75} roughness={0.28} />
+        </mesh>
+        <mesh position={[-0.06, -0.042, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.03, 0.3]} />
+          <meshStandardMaterial color="#fff6e4" emissive="#ffe2b0" emissiveIntensity={lit ? 1.4 : 0} toneMapped={false} />
+        </mesh>
+        <pointLight ref={lamp} position={[-0.32, -0.25, 0]} distance={3.2} decay={2} color="#ffe6c4" intensity={0} />
+      </group>
     </group>
   )
 }
@@ -420,12 +641,12 @@ function Decor() {
         <meshStandardMaterial map={t.rug} roughness={1} />
       </mesh>
 
-      <mesh position={[0.95, 0.11, 0.55]} castShadow>
+      <mesh position={[0.55, 0.11, 0.95]} castShadow>
         <icosahedronGeometry args={[0.11, 1]} />
         <meshStandardMaterial color="#f4f4f0" roughness={0.55} flatShading />
       </mesh>
 
-      <group position={[1.55, 0, 0.75]} rotation={[0, -0.5, 0]}>
+      <group position={[1.5, 0, 1.35]} rotation={[0, -0.9, 0]}>
         <Block box={[0, 0.2, 0, 0.32, 0.4, 0.16]} color="#2f5fa8" roughness={0.85} />
         <Block box={[0, 0.16, 0.09, 0.24, 0.18, 0.03]} color="#244a85" roughness={0.85} />
         <Block box={[0, 0.41, -0.02, 0.18, 0.05, 0.05]} color="#1d2433" roughness={0.85} />
