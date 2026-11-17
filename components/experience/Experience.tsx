@@ -52,7 +52,15 @@ export default function Experience() {
   }, [muted])
 
   useEffect(() => {
-    return () => sound.stopAll()
+    sound.preload()
+    const unlock = () => sound.unlock()
+    window.addEventListener("pointerdown", unlock, { once: true })
+    window.addEventListener("keydown", unlock, { once: true })
+    return () => {
+      window.removeEventListener("pointerdown", unlock)
+      window.removeEventListener("keydown", unlock)
+      sound.stopAll()
+    }
   }, [])
 
   useEffect(() => {
@@ -90,7 +98,8 @@ export default function Experience() {
       setFocused(id)
       setSettled(false)
       setChapterId(null)
-      sound.sit(reduced)
+      const target = seatById(id)
+      if (target) sound.sit(reduced, target)
       go("sitting")
     },
     [go, phase, reduced],
@@ -98,7 +107,7 @@ export default function Experience() {
 
   const stand = useCallback(() => {
     if (seatId) setFocused(seatId)
-    sound.stand(reduced)
+    sound.stand(reduced, seatById(seatId))
     go("inside")
   }, [go, reduced, seatId])
 

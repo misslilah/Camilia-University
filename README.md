@@ -10,7 +10,7 @@ The Camilia University reception. Push open the doors of a lecture hall, choose 
 
 The chapters: courses, campus, admissions, research, student life, and the office.
 
-The latch, the creak, the footsteps, the chair, and the chalk follow those motions. The button at the top right mutes them. The choice is remembered in this browser.
+Recorded sounds follow those motions: the latch and the double doors, footsteps on stone then carpet, the wooden tiers, the chair, and the chalk. The hall adds its own reverb. The button at the top right mutes them, and the choice is remembered in this browser. Sources and licenses are in `public/sounds/CREDITS.md`.
 
 ## Run locally
 
