@@ -60,28 +60,28 @@ export function Avatar({
   useEffect(() => () => parts.forEach((part) => part.geometry.dispose()), [parts])
 
   const materials = useMemo(() => {
-    // The mirror's oblique clip plane costs depth precision, so layers are
-    // ordered with polygon offsets instead of relying on their few millimetres.
-    const cloth = (roughness: number, layer: number, open = false) =>
+    // The mirror's oblique clip plane costs depth precision. Covered skin is
+    // not built at all; small offsets settle the layers that still touch.
+    const cloth = (roughness: number, factor: number, units: number, open = false) =>
       new MeshStandardMaterial({
         roughness,
         metalness: 0,
         side: open ? DoubleSide : FrontSide,
         polygonOffset: true,
-        polygonOffsetFactor: -layer,
-        polygonOffsetUnits: -layer * 4,
+        polygonOffsetFactor: factor,
+        polygonOffsetUnits: units,
       })
     const map: Record<MaterialKey, MeshStandardMaterial> = {
       skin: new MeshStandardMaterial({ roughness: 0.52, metalness: 0, side: FrontSide }),
-      hair: cloth(0.62, 2, true),
-      underwear: cloth(0.8, 1),
-      bottom: cloth(0.82, 2),
-      shoes: cloth(0.5, 3),
-      sole: cloth(0.7, 4),
-      top: cloth(0.86, 4),
-      trim: cloth(0.86, 5, true),
-      outer: cloth(0.78, 6, true),
-      button: cloth(0.35, 7),
+      hair: cloth(0.62, -2, -8, true),
+      underwear: cloth(0.8, -1, -4),
+      bottom: cloth(0.82, 0, -4),
+      shoes: cloth(0.5, -1, -4),
+      sole: cloth(0.7, -1, -8),
+      top: cloth(0.86, 0, -12),
+      trim: cloth(0.86, 0, -16, true),
+      outer: cloth(0.78, 0, -24, true),
+      button: cloth(0.35, -1, -32),
     }
     return map
   }, [])

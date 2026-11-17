@@ -479,24 +479,60 @@ function headGeometry(center: Vector3, r: Vector3) {
   return tube(frames, 36, { capStart: true, capEnd: true })
 }
 
-function body(m: Model, parts: Part[]) {
+// Skin that clothing covers completely is left out, so it can never show
+// through the cloth in the mirror.
+type Cover = { torsoFrom: number; legFrom: number | null; armFrom: number; shoulders: boolean; feet: boolean }
+
+function coverage(m: Model, c: Shape): Cover {
   const L = m.L
+  if (c.underwear) return { torsoFrom: L.bottom, legFrom: 0, armFrom: 0, shoulders: true, feet: true }
+  const tank = c.top === "tank"
+  return {
+    torsoFrom: tank ? L.shoulderY - 0.03 : L.neck - 0.035,
+    legFrom: c.bottom === "shorts" ? 0.34 : c.bottom === "skirt" ? 0.5 : null,
+    armFrom: c.outer !== "none" ? 0.88 : c.top === "tee" ? 0.3 : tank ? 0 : 0.9,
+    shoulders: tank && c.outer === "none",
+    feet: false,
+  }
+}
+
+function body(m: Model, cover: Cover, parts: Part[]) {
+  const L = m.L
+  const whole = cover.torsoFrom <= L.bottom
   parts.push({
-    geometry: torsoShell(m, L.bottom, m.top, 0, { rings: 56, capStart: true, capEnd: true }),
+    geometry: torsoShell(m, cover.torsoFrom, m.top, 0, {
+      rings: Math.max(8, Math.round(56 * ((m.top - cover.torsoFrom) / (m.top - L.bottom)))),
+      capStart: whole,
+      capEnd: true,
+    }),
     material: "skin",
   })
-  for (const leg of m.legs) {
-    parts.push({ geometry: tube(sample(leg, 0, 1, 0, 40), 26, { capStart: true, capEnd: true }), material: "skin" })
+  if (cover.legFrom !== null) {
+    for (const leg of m.legs) {
+      parts.push({
+        geometry: tube(sample(leg, cover.legFrom, 1, 0, Math.round(40 * (1 - cover.legFrom)) + 2), 26, {
+          capStart: cover.legFrom === 0,
+          capEnd: true,
+        }),
+        material: "skin",
+      })
+    }
   }
   m.arms.forEach((arm, i) => {
-    parts.push({ geometry: tube(sample(arm, 0, 1, 0, 34), 22, { capStart: true, capEnd: true }), material: "skin" })
+    parts.push({
+      geometry: tube(sample(arm, cover.armFrom, 1, 0, Math.round(34 * (1 - cover.armFrom)) + 2), 22, {
+        capStart: cover.armFrom === 0,
+        capEnd: true,
+      }),
+      material: "skin",
+    })
     const [, elbow, wrist] = m.armPoints[i]
     const dir = wrist.clone().sub(elbow).normalize()
     parts.push({
       geometry: ellipsoid(wrist.clone().addScaledVector(dir, 0.06), new Vector3(0.021, 0.07, 0.04).multiplyScalar(m.limbW * (m.sex === "woman" ? 0.92 : 1)), { dir }),
       material: "skin",
     })
-    parts.push({ geometry: shoulderCap(m, i, 0), material: "skin" })
+    if (cover.shoulders) parts.push({ geometry: shoulderCap(m, i, 0), material: "skin" })
   })
   const neckR = L.neckR * (0.85 + 0.15 * m.w)
   const neck = limb([new Vector3(0, L.neck - 0.06, -0.012), new Vector3(0, L.neck + 0.12, 0.0)], () => neckR, FRONT)
@@ -515,7 +551,7 @@ function body(m: Model, parts: Part[]) {
     })
   }
   for (let side = 0; side < 2; side += 1) {
-    parts.push({ geometry: footShell(m, side, 0), material: "skin" })
+    if (cover.feet) parts.push({ geometry: footShell(m, side, 0), material: "skin" })
   }
 }
 
@@ -614,14 +650,14 @@ function top(m: Model, c: Shape, parts: Part[]) {
   const add = (geometry: BufferGeometry, material: MaterialKey = "top") => parts.push({ geometry, material })
   const neckTop = L.neck - 0.004
   if (c.top === "tank") {
-    add(torsoShell(m, 0.92, L.shoulderY + 0.012, 0.012))
+    add(torsoShell(m, 0.92, L.shoulderY + 0.012, 0.017))
     for (const side of [-1, 1]) {
       const x = side * (L.shoulderX * 0.62)
       const strap = limb(
         [
-          m.torsoPoint(L.shoulderY - 0.005, Math.asin(Math.min(0.95, Math.abs(x) / m.torso(L.shoulderY, 0).x.x)) * side, 0.012),
+          m.torsoPoint(L.shoulderY - 0.005, Math.asin(Math.min(0.95, Math.abs(x) / m.torso(L.shoulderY, 0).x.x)) * side, 0.017),
           new Vector3(x * 1.05, L.neck - 0.02, -0.01),
-          m.torsoPoint(L.shoulderY - 0.005, Math.PI - Math.asin(Math.min(0.95, Math.abs(x) / m.torso(L.shoulderY, 0).x.x)) * side, 0.012),
+          m.torsoPoint(L.shoulderY - 0.005, Math.PI - Math.asin(Math.min(0.95, Math.abs(x) / m.torso(L.shoulderY, 0).x.x)) * side, 0.017),
         ],
         () => 0.008,
         new Vector3(1, 0, 0),
@@ -774,7 +810,7 @@ function outer(m: Model, c: Shape, parts: Part[]) {
   }
   for (let side = 0; side < 2; side += 1) {
     add(sleeve(m, side, 0.94, off - 0.004, 0.006))
-    add(shoulderCap(m, side, off - 0.002))
+    add(shoulderCap(m, side, off - 0.01))
   }
   if (c.outer !== "cardigan") {
     const collar: Frame[] = []
@@ -815,7 +851,7 @@ function underwear(m: Model, parts: Part[]) {
 export function buildParts(c: Shape): Part[] {
   const m = model(c)
   const parts: Part[] = []
-  body(m, parts)
+  body(m, coverage(m, c), parts)
   hair(m, c, parts)
   if (c.underwear) {
     underwear(m, parts)
