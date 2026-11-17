@@ -1,5 +1,6 @@
 "use client"
 
+import { Volume2, VolumeX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CHAPTERS, type Phase, type Seat } from "@/lib/scene"
 import { cn } from "@/lib/utils"
@@ -14,6 +15,8 @@ export function Hud({
   onStand,
   onSelect,
   onBack,
+  muted,
+  onToggleSound,
 }: {
   phase: Phase
   seat: Seat | null
@@ -24,6 +27,8 @@ export function Hud({
   onStand: () => void
   onSelect: (id: string) => void
   onBack: () => void
+  muted: boolean
+  onToggleSound: () => void
 }) {
   const chapter = CHAPTERS.find((item) => item.id === chapterId) ?? null
   const hint =
@@ -36,6 +41,16 @@ export function Hud({
   return (
     <div className="pointer-events-none absolute inset-0 z-10 text-[#f6f0e6]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_42%,rgba(16,10,8,0.42)_100%)]" />
+
+      <button
+        type="button"
+        aria-pressed={muted}
+        aria-label={muted ? "Unmute sounds" : "Mute sounds"}
+        onClick={onToggleSound}
+        className="pointer-events-auto absolute top-5 right-5 grid h-10 w-10 place-items-center rounded-full border border-[#f3ead7]/25 bg-[#1a120e]/55 text-[#f6f0e6] backdrop-blur-md transition-colors hover:bg-[#f3ead7] hover:text-[#2a1c14] sm:top-7 sm:right-7"
+      >
+        {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+      </button>
 
       <div
         aria-hidden={phase !== "arrival"}

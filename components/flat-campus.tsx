@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { CHAPTERS } from "@/lib/scene"
+import { sound } from "@/lib/sound"
 
 export function FlatCampus() {
   const [open, setOpen] = useState<string | null>(CHAPTERS[0].id)
@@ -24,7 +25,12 @@ export function FlatCampus() {
                   variant="ghost"
                   className="h-auto w-full justify-start rounded-none px-0 py-2 text-left font-serif text-2xl text-[#2a1c14] hover:bg-transparent hover:text-[#6e2433]"
                   aria-expanded={expanded}
-                  onClick={() => setOpen(expanded ? null : chapter.id)}
+                  onClick={() => {
+                    const next = expanded ? null : chapter.id
+                    setOpen(next)
+                    if (next) sound.writePage()
+                    else sound.wipeBoard()
+                  }}
                 >
                   <span className="mr-4 text-sm tracking-[0.2em] text-[#6b4a32]">{chapter.numeral}</span>
                   {chapter.title}

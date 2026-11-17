@@ -10,6 +10,7 @@ import { Doors } from "@/components/experience/Doors"
 import { Hall, Lights, Motes } from "@/components/experience/Hall"
 import { Hud } from "@/components/experience/Hud"
 import { Seating } from "@/components/experience/Seating"
+import { sound } from "@/lib/sound"
 import {
   CHAPTERS,
   OUTSIDE,
@@ -37,7 +38,22 @@ export default function Experience() {
   const [reduced, setReduced] = useState(
     () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   )
+  const [muted, setMuted] = useState(() => {
+    try {
+      return window.localStorage.getItem("camilia-muted") === "1"
+    } catch {
+      return false
+    }
+  })
   const openRef = useRef(0)
+
+  useEffect(() => {
+    sound.prime(muted)
+  }, [muted])
+
+  useEffect(() => {
+    return () => sound.stopAll()
+  }, [])
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -57,12 +73,15 @@ export default function Experience() {
   }, [])
 
   const openDoors = useCallback(() => {
-    if (phase === "arrival") go("opening")
-  }, [go, phase])
+    if (phase !== "arrival") return
+    sound.entrance(reduced)
+    go("opening")
+  }, [go, phase, reduced])
 
   const skip = useCallback(() => {
+    sound.glideIn(reduced)
     go("inside")
-  }, [go])
+  }, [go, reduced])
 
   const pickSeat = useCallback(
     (id: string) => {
@@ -71,15 +90,39 @@ export default function Experience() {
       setFocused(id)
       setSettled(false)
       setChapterId(null)
+      sound.sit(reduced)
       go("sitting")
     },
-    [go, phase],
+    [go, phase, reduced],
   )
 
   const stand = useCallback(() => {
     if (seatId) setFocused(seatId)
+    sound.stand(reduced)
     go("inside")
-  }, [go, seatId])
+  }, [go, reduced, seatId])
+
+  const openChapter = useCallback((id: string) => {
+    setChapterId(id)
+    sound.writePage()
+  }, [])
+
+  const closeChapter = useCallback(() => {
+    setChapterId(null)
+    sound.wipeBoard()
+  }, [])
+
+  const toggleSound = useCallback(() => {
+    const next = !muted
+    sound.setMuted(next)
+    try {
+      window.localStorage.setItem("camilia-muted", next ? "1" : "0")
+    } catch {
+      // Storage can be blocked; the button still mutes this visit.
+    }
+    if (!next) sound.tap()
+    setMuted(next)
+  }, [muted])
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -104,17 +147,17 @@ export default function Experience() {
       }
       if (phase === "inside" && event.key === "Enter" && focused) pickSeat(focused)
       if (phase === "sitting" && event.key === "Escape") {
-        if (chapterId) setChapterId(null)
+        if (chapterId) closeChapter()
         else stand()
       }
       if (phase === "sitting" && settled && !chapterId && /^[1-6]$/.test(event.key)) {
         const chapter = CHAPTERS[Number(event.key) - 1]
-        if (chapter) setChapterId(chapter.id)
+        if (chapter) openChapter(chapter.id)
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [chapterId, focused, openDoors, phase, pickSeat, settled, skip, stand])
+  }, [chapterId, closeChapter, focused, openChapter, openDoors, phase, pickSeat, settled, skip, stand])
 
   if (!webgl) return <FlatCampus />
 
@@ -145,8 +188,8 @@ export default function Experience() {
           <Blackboard
             showMenu={phase === "sitting" && settled}
             chapterId={chapterId}
-            onSelect={setChapterId}
-            onBack={() => setChapterId(null)}
+            onSelect={openChapter}
+            onBack={closeChapter}
           />
         </Suspense>
         <Director
@@ -156,7 +199,10 @@ export default function Experience() {
           seat={seat}
           openRef={openRef}
           onEntered={() => go("inside")}
-          onSat={() => setSettled(true)}
+          onSat={() => {
+            setSettled(true)
+            sound.writeMenu()
+          }}
         />
       </Canvas>
       <Hud
@@ -167,8 +213,10 @@ export default function Experience() {
         onOpen={openDoors}
         onSkip={skip}
         onStand={stand}
-        onSelect={setChapterId}
-        onBack={() => setChapterId(null)}
+        onSelect={openChapter}
+        onBack={closeChapter}
+        muted={muted}
+        onToggleSound={toggleSound}
       />
     </div>
   )

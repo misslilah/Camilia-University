@@ -222,10 +222,22 @@ export function sampleEnter(amount: number, outP: { set: (x: number, y: number, 
   )
 }
 
+export function doorDuration(reduced: boolean) {
+  return reduced ? 0.28 : 1.5
+}
+
+export function sitDuration(reduced: boolean) {
+  return reduced ? 0.4 : 1.85
+}
+
+export function riseDuration(reduced: boolean) {
+  return reduced ? 0.4 : 1.3
+}
+
 export function doorAmount(phase: Phase, openingElapsed: number, reduced: boolean) {
   if (phase === "arrival") return 0
   if (phase !== "opening") return 1
-  const duration = reduced ? 0.28 : 1.5
+  const duration = doorDuration(reduced)
   const t = Math.min(1, Math.max(0, openingElapsed / duration))
   return smootherstep(t)
 }

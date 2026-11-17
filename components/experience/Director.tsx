@@ -9,7 +9,9 @@ import {
   SIT_FOV,
   doorAmount,
   enterDuration,
+  riseDuration,
   sampleEnter,
+  sitDuration,
   type Phase,
   type Seat,
 } from "@/lib/scene"
@@ -70,13 +72,13 @@ export function Director({
         motion.toFov = INSIDE.fov
       } else if (phase === "sitting" && seat) {
         motion.mode = "lerp"
-        motion.duration = reduced ? 0.4 : 1.85
+        motion.duration = sitDuration(reduced)
         toP.current.set(...seat.sit)
         toL.current.set(...seat.look)
         motion.toFov = window.innerWidth < 760 ? 64 : SIT_FOV
       } else if (phase === "inside") {
         motion.mode = "lerp"
-        motion.duration = reduced ? 0.4 : 1.3
+        motion.duration = riseDuration(reduced)
         toP.current.set(...INSIDE.position)
         toL.current.set(...INSIDE.look)
         motion.toFov = INSIDE.fov
