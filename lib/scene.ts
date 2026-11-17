@@ -271,36 +271,6 @@ export const CHAPTERS: Chapter[] = [
     title: "Courses",
     body: "Three faculties share this hall.\nLetters: translation, writing, reading aloud.\nLife sciences: morning lectures, practicals.\nArts: history of the image, studio, stage.",
   },
-  {
-    id: "campus",
-    numeral: "02",
-    title: "Campus",
-    body: "The house opens onto a cloister of fig trees.\nThe library stays open until midnight.\nThe winter garden fills the old orangery.\nRooms are in the west wing, above the workshops.",
-  },
-  {
-    id: "admissions",
-    numeral: "03",
-    title: "Admissions",
-    body: "An application is three pieces:\na letter, a work of your own, an interview.\nThe next session opens in March.\nApplicants cross this hall first.",
-  },
-  {
-    id: "recherche",
-    numeral: "04",
-    title: "Research",
-    body: "The laboratories welcome master's students.\nThe manuscript workshop.\nThe observatory of forms.\nThe Camille group studies light and color.",
-  },
-  {
-    id: "vie",
-    numeral: "05",
-    title: "Student life",
-    body: "The choir rehearses on Wednesdays, under the gallery.\nThe Camilia review appears twice a year.\nAfter class, the chess club sits by the windows.",
-  },
-  {
-    id: "ecrire",
-    numeral: "06",
-    title: "Write to us",
-    body: "General office, east gallery, door B.\nsecretariat@camilia.university\nMorning visits, by appointment.",
-  },
 ]
 
 const ENTER_KEYS: { t: number; position: Vec3; look: Vec3 }[] = [

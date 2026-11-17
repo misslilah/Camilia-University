@@ -310,9 +310,11 @@ export default function Experience() {
         if (chapterId) closeChapter()
         else stand()
       }
-      if (phase === "sitting" && settled && !chapterId && /^[1-6]$/.test(event.key)) {
-        const chapter = CHAPTERS[Number(event.key) - 1]
-        if (chapter) openChapter(chapter.id)
+      if (phase === "sitting" && settled && !chapterId) {
+        const index = Number(event.key) - 1
+        if (Number.isInteger(index) && index >= 0 && index < CHAPTERS.length) {
+          openChapter(CHAPTERS[index].id)
+        }
       }
     }
     window.addEventListener("keydown", onKey)
