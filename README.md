@@ -16,9 +16,11 @@ Right of the double doors, a smaller door leads to a bedroom with blue walls: a 
 
 In the bedroom, click (or tap) the wardrobe. Its doors swing open and you step in front of a standing mirror, where your character appears, with a simple stylised face that blinks now and then.
 
-The first time, you create your character: choose Men or Women, then set the height, skin tone, hairstyle and hair colour, and press Create character. Clothes are fixed and simple: a grey T-shirt, dark straight jeans and white sneakers for Men; a white T-shirt, straight jeans and white sneakers for Women.
+The first time, you create your character: choose Men or Women, then set the height, skin tone, hairstyle and hair colour, and press Create character. The body is then fixed and cannot be edited again.
 
-After that, the same panel (on the right, or at the bottom on a phone) opens as Your character, to change the body, height, skin tone or hair at any time. Every change shows in the mirror straight away. Drag on the scene, use the turn buttons, or press the arrow keys to turn the character. Done, Back to the room, or Escape closes the wardrobe. The character is saved in this browser.
+After that, the wardrobe panel (on the right, or at the bottom on a phone) is for getting dressed. Pick one item per category by clicking it: Underwear (always worn: boxer briefs for Men, a briefs and bralette set for Women, in a few plain colours), Tops, Pants and Shoes. Tops, Pants and Shoes also have None, so the character can stand in underwear. Items are fixed and not customisable. A new character starts in a grey T-shirt, dark jeans and white sneakers (Men) or a white T-shirt, blue jeans and white sneakers (Women). Bodies are smooth, mannequin-like figures with no anatomical detail.
+
+Every change shows in the mirror straight away. Drag on the scene, use the turn buttons, or press the arrow keys to turn the character. Done, Back to the room, or Escape closes the wardrobe. The character and outfit are saved in this browser.
 
 Recorded sounds follow those motions: the latch and the double doors, footsteps on stone then carpet, the wooden tiers, the chair, and the chalk. The hall adds its own reverb. The button at the top right mutes them, and the choice is remembered in this browser. Sources and licenses are in `public/sounds/CREDITS.md`.
 

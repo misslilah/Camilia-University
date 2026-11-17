@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react"
 import { useFrame } from "@react-three/fiber"
 import { CanvasTexture, Color, DoubleSide, FrontSide, MeshStandardMaterial, type Group, type Object3D } from "three"
-import { AVATAR_LAYER, OUTFIT, heightMeters, type Character } from "@/lib/avatar"
+import { AVATAR_LAYER, BOTTOMS, SHOES, TOPS, UNDERWEAR, findItem, heightMeters, type Character } from "@/lib/avatar"
 import { CANONICAL_HEIGHT, buildParts, type MaterialKey } from "@/lib/avatar-geometry"
 import type { Vec3 } from "@/lib/scene"
 
@@ -56,9 +56,19 @@ export function Avatar({
 }) {
   const root = useRef<Group>(null)
   const turn = useRef(0)
-  const { sex, hair } = character
+  const { sex, hair, outfit } = character
+  const top = findItem(TOPS[sex], outfit.top)
+  const bottom = findItem(BOTTOMS[sex], outfit.bottom)
+  const shoes = findItem(SHOES[sex], outfit.shoes)
+  const underwear = findItem(UNDERWEAR[sex], outfit.underwear)
+  const topKind = top?.kind ?? null
+  const bottomKind = bottom?.kind ?? null
+  const shoeKind = shoes?.kind ?? null
 
-  const parts = useMemo(() => buildParts({ sex, hair }), [sex, hair])
+  const parts = useMemo(
+    () => buildParts({ sex, hair, top: topKind, bottom: bottomKind, shoes: shoeKind }),
+    [sex, hair, topKind, bottomKind, shoeKind],
+  )
 
   useEffect(() => () => parts.forEach((part) => part.geometry.dispose()), [parts])
 
@@ -80,6 +90,7 @@ export function Avatar({
       bottom: cloth(0.82, 0, -4),
       shoes: cloth(0.5, -1, -4),
       sole: cloth(0.7, -1, -8),
+      underwear: cloth(0.8, -1, -4),
       top: cloth(0.86, 0, -12),
       brow: cloth(0.8, -1, -12),
       eyeWhite: cloth(0.3, -1, -8),
@@ -97,14 +108,14 @@ export function Avatar({
   useEffect(() => {
     materials.skin.color.set(character.skin)
     materials.hair.color.set(character.hairColor)
-    const outfit = OUTFIT[character.sex]
-    materials.top.color.set(outfit.top)
-    materials.bottom.color.set(outfit.bottom)
-    materials.shoes.color.set(outfit.shoes)
-    materials.sole.color.set(outfit.sole)
+    if (top) materials.top.color.set(top.color)
+    if (bottom) materials.bottom.color.set(bottom.color)
+    if (shoes) materials.shoes.color.set(shoes.color)
+    if (shoes?.sole) materials.sole.color.set(shoes.sole)
+    if (underwear) materials.underwear.color.set(underwear.color)
     materials.brow.color.set(character.hairColor).lerp(BROW_SHADE, 0.35)
     materials.lips.color.set(character.skin).lerp(LIPS, 0.55)
-  }, [character, materials])
+  }, [character, materials, top, bottom, shoes, underwear])
 
   const shadow = useMemo(() => shadowTexture(), [])
   useEffect(() => () => shadow.dispose(), [shadow])

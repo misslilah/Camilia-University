@@ -124,7 +124,7 @@ export function Hud({
           Back to the hallway
         </Button>
         <p className="hidden rounded-full bg-[#1a120e]/45 px-3 py-2 text-xs tracking-wide text-[#f6f0e6]/85 backdrop-blur-md sm:block">
-          Move the mouse to look around · Click the wardrobe to see your character
+          Move the mouse to look around · Click the wardrobe to get dressed
         </p>
         <p className="rounded-full bg-[#1a120e]/45 px-3 py-2 text-xs tracking-wide text-[#f6f0e6]/85 backdrop-blur-md sm:hidden">
           Drag to look · Tap the wardrobe
@@ -208,9 +208,9 @@ export function Hud({
         {phase === "leaving" && "You walk back out to the hallway."}
         {phase === "toRoom" && "You open the bedroom door."}
         {phase === "room" &&
-          "You are in the bedroom: blue walls, a bed under the window, a desk with a computer, a wardrobe and a standing mirror. Click the wardrobe to see your character. Press Escape to go back to the hallway."}
+          "You are in the bedroom: blue walls, a bed under the window, a desk with a computer, a wardrobe and a standing mirror. Click the wardrobe to get dressed. Press Escape to go back to the hallway."}
         {phase === "wardrobe" &&
-          "The wardrobe is open and your character stands in the mirror. Use the character panel to change the body, skin tone and hair. Press Escape to go back to the room."}
+          "The wardrobe is open and your character stands in the mirror. Use the panel to create your character, then to choose underwear, tops, pants and shoes. Press Escape to go back to the room."}
         {phase === "sitting" &&
           (chapter
             ? `${chapter.title}. ${chapter.body}`

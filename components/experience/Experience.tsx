@@ -139,25 +139,19 @@ export default function Experience() {
     go("room")
   }, [go, phase])
 
+  // Updates are applied to the latest state so quick successive picks all land.
+  const updateCharacter = useCallback((update: (current: Character) => Character) => {
+    setCharacter((current) => (current ? update(current) : current))
+  }, [])
+
   // A character being created stays a draft until it is confirmed.
-  const updateCharacter = useCallback(
-    (next: Character) => {
-      setCharacter(next)
-      if (created) saveCharacter(next)
-    },
-    [created],
-  )
+  useEffect(() => {
+    if (created && character) saveCharacter(character)
+  }, [character, created])
 
-  const createCharacter = useCallback(() => {
-    if (!character) return
-    saveCharacter(character)
-    setCreated(true)
-  }, [character])
+  const createCharacter = useCallback(() => setCreated(true), [])
 
-  const chooseBody = useCallback(
-    (sex: Sex) => updateCharacter(baseCharacter(sex)),
-    [updateCharacter],
-  )
+  const chooseBody = useCallback((sex: Sex) => setCharacter(baseCharacter(sex)), [])
 
   const turnAvatar = useCallback((step: number) => {
     avatarYawRef.current += step

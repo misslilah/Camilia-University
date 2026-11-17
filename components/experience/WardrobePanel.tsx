@@ -5,14 +5,21 @@ import { ArrowLeft, RotateCcw, RotateCw, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import {
+  BOTTOMS,
   HAIR,
   HAIR_COLORS,
+  NONE,
+  SHOES,
   SKIN,
   SEX_LABEL,
+  TOPS,
+  UNDERWEAR,
   heightMeters,
   switchSex,
   type Character,
+  type Item,
   type Option,
+  type Outfit,
   type Sex,
   type Swatch,
 } from "@/lib/avatar"
@@ -35,7 +42,7 @@ export function WardrobePanel({
   character: Character | null
   created: boolean
   onChoose: (sex: Sex) => void
-  onChange: (next: Character) => void
+  onChange: (update: (current: Character) => Character) => void
   onCreate: () => void
   onDone: () => void
   onTurn: (step: number) => void
@@ -79,7 +86,7 @@ export function WardrobePanel({
       </div>
 
       <aside
-        aria-label="Your character"
+        aria-label={created ? "Wardrobe" : "Create your character"}
         aria-hidden={!open}
         inert={!open}
         data-wardrobe-panel
@@ -95,7 +102,7 @@ export function WardrobePanel({
         <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-3">
           <div>
             <p className="text-[10px] tracking-[0.32em] text-[#f3ead7]/60">{created ? "BEDROOM" : "NEW CHARACTER"}</p>
-            <h2 className="font-serif text-2xl leading-tight">{created ? "Your character" : "Create your character"}</h2>
+            <h2 className="font-serif text-2xl leading-tight">{created ? "Wardrobe" : "Create your character"}</h2>
           </div>
           <button
             type="button"
@@ -108,7 +115,11 @@ export function WardrobePanel({
         </div>
 
         {character ? (
-          <Editor character={character} created={created} onChange={onChange} onCreate={onCreate} onDone={onDone} />
+          created ? (
+            <Dresser character={character} onChange={onChange} onDone={onDone} />
+          ) : (
+            <Creator character={character} onChange={onChange} onCreate={onCreate} />
+          )
         ) : (
           <Chooser onChoose={onChoose} />
         )}
@@ -169,9 +180,10 @@ function BodyFields({
   onChange,
 }: {
   character: Character
-  onChange: (next: Character) => void
+  onChange: (update: (current: Character) => Character) => void
 }) {
-  const set = <K extends keyof Character>(key: K, value: Character[K]) => onChange({ ...character, [key]: value })
+  const set = <K extends keyof Character>(key: K, value: Character[K]) =>
+    onChange((current) => ({ ...current, [key]: value }))
   return (
     <div className="flex flex-col gap-5">
       <Section title="Body">
@@ -181,7 +193,7 @@ function BodyFields({
               key={sex}
               type="button"
               aria-pressed={character.sex === sex}
-              onClick={() => onChange(switchSex(character, sex))}
+              onClick={() => onChange((current) => switchSex(current, sex))}
               className={cn(
                 "h-8 rounded-full text-sm transition-colors",
                 character.sex === sex ? "bg-[#f3ead7] text-[#2a1c14]" : "text-[#f6f0e6]/80 hover:bg-white/10",
@@ -212,18 +224,14 @@ function BodyFields({
 const scroller =
   "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 [scrollbar-color:rgba(243,234,215,0.25)_transparent]"
 
-function Editor({
+function Creator({
   character,
-  created,
   onChange,
   onCreate,
-  onDone,
 }: {
   character: Character
-  created: boolean
-  onChange: (next: Character) => void
+  onChange: (update: (current: Character) => Character) => void
   onCreate: () => void
-  onDone: () => void
 }) {
   return (
     <>
@@ -231,17 +239,91 @@ function Editor({
         <BodyFields character={character} onChange={onChange} />
       </div>
       <div className="flex flex-col gap-2 border-t border-[#f3ead7]/12 px-5 py-3">
-        {created ? (
-          <Button className="h-10 w-full rounded-full" onClick={onDone}>
-            Done
-          </Button>
-        ) : (
-          <Button className="h-10 w-full rounded-full" onClick={onCreate}>
-            Create character
-          </Button>
-        )}
+        <p className="text-xs text-[#f3ead7]/60">Your character cannot be changed once created. Clothes come next.</p>
+        <Button className="h-10 w-full rounded-full" onClick={onCreate}>
+          Create character
+        </Button>
       </div>
     </>
+  )
+}
+
+function Dresser({
+  character,
+  onChange,
+  onDone,
+}: {
+  character: Character
+  onChange: (update: (current: Character) => Character) => void
+  onDone: () => void
+}) {
+  const { sex, outfit } = character
+  const wear = (slot: keyof Outfit) => (id: string) =>
+    onChange((current) => ({ ...current, outfit: { ...current.outfit, [slot]: id } }))
+  return (
+    <>
+      <div className={cn(scroller, "flex flex-col gap-5")}>
+        <Section title="Underwear">
+          <Items items={UNDERWEAR[sex]} value={outfit.underwear} onPick={wear("underwear")} />
+        </Section>
+        <Section title="Tops">
+          <Items items={TOPS[sex]} value={outfit.top} onPick={wear("top")} none />
+        </Section>
+        <Section title="Pants">
+          <Items items={BOTTOMS[sex]} value={outfit.bottom} onPick={wear("bottom")} none />
+        </Section>
+        <Section title="Shoes">
+          <Items items={SHOES[sex]} value={outfit.shoes} onPick={wear("shoes")} none />
+        </Section>
+      </div>
+      <div className="border-t border-[#f3ead7]/12 px-5 py-3">
+        <Button className="h-10 w-full rounded-full" onClick={onDone}>
+          Done
+        </Button>
+      </div>
+    </>
+  )
+}
+
+function Items({
+  items,
+  value,
+  onPick,
+  none = false,
+}: {
+  items: Item[]
+  value: string
+  onPick: (id: string) => void
+  none?: boolean
+}) {
+  const options = none ? [{ id: NONE, label: "None", color: "" }, ...items] : items
+  return (
+    <div className="grid grid-cols-2 gap-1.5">
+      {options.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          aria-pressed={item.id === value}
+          onClick={() => onPick(item.id)}
+          className={cn(
+            "flex h-10 items-center gap-2.5 rounded-2xl border px-3 text-left text-[13px] leading-tight transition-colors focus-visible:ring-2 focus-visible:ring-[#c6a15a] focus-visible:outline-none",
+            item.id === value
+              ? "border-[#f3ead7] bg-[#f3ead7] text-[#2a1c14]"
+              : "border-[#f3ead7]/20 text-[#f6f0e6]/85 hover:border-[#f3ead7]/45 hover:bg-white/5",
+          )}
+        >
+          <span
+            aria-hidden
+            className={cn(
+              "h-4 w-4 shrink-0 rounded-full border",
+              item.color ? "border-black/30" : "border-dashed border-current opacity-60",
+            )}
+            style={item.color ? { backgroundColor: item.color } : undefined}
+          />
+          {item.label}
+        </button>
+      ))}
+    </div>
   )
 }
 
