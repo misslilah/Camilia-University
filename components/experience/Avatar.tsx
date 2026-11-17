@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react"
 import { useFrame } from "@react-three/fiber"
-import { CanvasTexture, DoubleSide, FrontSide, MeshStandardMaterial, type Group, type Object3D } from "three"
+import { CanvasTexture, Color, DoubleSide, FrontSide, MeshStandardMaterial, type Group, type Object3D } from "three"
 import { AVATAR_LAYER, UNDERWEAR_COLOR, heightMeters, type Character } from "@/lib/avatar"
 import { CANONICAL_HEIGHT, buildParts, type MaterialKey } from "@/lib/avatar-geometry"
 import type { Vec3 } from "@/lib/scene"
@@ -33,6 +33,18 @@ function soleColor(shoes: string) {
   return luma < 90 ? "#2a2a2c" : "#f3f1ea"
 }
 
+const LIPS = new Color("#a8574f")
+const BROW_SHADE = new Color("#1c1410")
+
+// Eyes close for a few frames every few seconds, at slightly uneven intervals.
+function blinkAmount(time: number) {
+  const period = 4.2
+  const cycle = Math.floor(time / period)
+  const at = time - cycle * period - ((cycle * 1.37) % 1.6)
+  if (at < 0 || at > 0.16) return 0
+  return Math.sin((at / 0.16) * Math.PI)
+}
+
 export function Avatar({
   character,
   visible,
@@ -50,11 +62,11 @@ export function Avatar({
 }) {
   const root = useRef<Group>(null)
   const turn = useRef(0)
-  const { sex, build, shoulders, hips, hair, top, bottom, shoes, outer, underwear } = character
+  const { sex, hair, top, bottom, shoes, outer, underwear } = character
 
   const parts = useMemo(
-    () => buildParts({ sex, build, shoulders, hips, hair, top, bottom, shoes, outer, underwear }),
-    [sex, build, shoulders, hips, hair, top, bottom, shoes, outer, underwear],
+    () => buildParts({ sex, hair, top, bottom, shoes, outer, underwear }),
+    [sex, hair, top, bottom, shoes, outer, underwear],
   )
 
   useEffect(() => () => parts.forEach((part) => part.geometry.dispose()), [parts])
@@ -82,7 +94,14 @@ export function Avatar({
       trim: cloth(0.86, 0, -16, true),
       outer: cloth(0.78, 0, -24, true),
       button: cloth(0.35, -1, -32),
+      brow: cloth(0.8, -1, -12),
+      eyeWhite: cloth(0.3, -1, -8),
+      iris: cloth(0.2, -1, -16),
+      eyeShine: new MeshStandardMaterial({ color: "#ffffff", emissive: "#ffffff", emissiveIntensity: 0.6, roughness: 0.2 }),
+      lips: cloth(0.45, -1, -8),
     }
+    map.eyeWhite.color.set("#f2eee6")
+    map.iris.color.set("#2b1d16")
     return map
   }, [])
 
@@ -98,6 +117,8 @@ export function Avatar({
     materials.sole.color.set(soleColor(character.shoesColor))
     materials.outer.color.set(character.outerColor)
     materials.underwear.color.set(UNDERWEAR_COLOR)
+    materials.brow.color.set(character.hairColor).lerp(BROW_SHADE, 0.35)
+    materials.lips.color.set(character.skin).lerp(LIPS, 0.55)
   }, [character, materials])
 
   const shadow = useMemo(() => shadowTexture(), [])
@@ -115,6 +136,8 @@ export function Avatar({
     const breath = reduced ? 0 : Math.sin(time * 1.6)
     group.scale.set(scale * (1 + breath * 0.004), scale * (1 + breath * 0.0025), scale * (1 + breath * 0.006))
     group.rotation.z = reduced ? 0 : Math.sin(time * 0.5) * 0.006
+    const open = 1 - (reduced ? 0 : blinkAmount(time)) * 0.9
+    for (const child of group.children) if (child.userData.blink) child.scale.y = open
   })
 
   return (
@@ -125,7 +148,14 @@ export function Avatar({
       </mesh>
       <group ref={root} scale={scale} rotation={[0, facing, 0]}>
         {parts.map((part, index) => (
-          <mesh key={index} ref={onAvatarLayer} geometry={part.geometry} material={materials[part.material]} />
+          <mesh
+            key={index}
+            ref={onAvatarLayer}
+            userData={{ blink: part.blink === true }}
+            position={part.position}
+            geometry={part.geometry}
+            material={materials[part.material]}
+          />
         ))}
       </group>
     </group>

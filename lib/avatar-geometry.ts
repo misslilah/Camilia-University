@@ -9,9 +9,24 @@ import {
 } from "three"
 import type { Character, Sex } from "@/lib/avatar"
 
-export type MaterialKey = "skin" | "hair" | "top" | "trim" | "bottom" | "shoes" | "sole" | "outer" | "underwear" | "button"
-export type Part = { geometry: BufferGeometry; material: MaterialKey }
-export type Shape = Pick<Character, "sex" | "build" | "shoulders" | "hips" | "hair" | "top" | "bottom" | "shoes" | "outer" | "underwear">
+export type MaterialKey =
+  | "skin"
+  | "hair"
+  | "brow"
+  | "eyeWhite"
+  | "iris"
+  | "eyeShine"
+  | "lips"
+  | "top"
+  | "trim"
+  | "bottom"
+  | "shoes"
+  | "sole"
+  | "outer"
+  | "underwear"
+  | "button"
+export type Part = { geometry: BufferGeometry; material: MaterialKey; position?: Vector3; blink?: boolean }
+export type Shape = Pick<Character, "sex" | "hair" | "top" | "bottom" | "shoes" | "outer" | "underwear">
 
 // The body is modelled at this height, then scaled to the chosen one.
 export const CANONICAL_HEIGHT = 1.78
@@ -306,10 +321,10 @@ type Model = ReturnType<typeof model>
 function model(c: Shape) {
   const L = LAYOUT[c.sex]
   const keys = TORSO[c.sex]
-  const w = 0.9 + 0.3 * c.build
-  const limbW = 0.88 + 0.36 * c.build
-  const s = 0.9 + 0.2 * c.shoulders
-  const h = 0.9 + 0.2 * c.hips
+  const w = 0.975
+  const limbW = 0.97
+  const s = 1
+  const h = 1
   const rxCurve = curve(keys.map((k) => [k[0], k[1]]))
   const rzCurve = curve(keys.map((k) => [k[0], k[2]]))
   const czCurve = curve(keys.map((k) => [k[0], k[3]]))
@@ -327,7 +342,7 @@ function model(c: Shape) {
     }
   }
 
-  const bust = c.sex === "woman" ? 0.03 * (0.85 + 0.3 * c.build) : 0
+  const bust = c.sex === "woman" ? 0.028 : 0
   const bustY = 1.235
   const bustX = 0.07 * w
   const glute = c.sex === "woman" ? 0.022 : 0.014
@@ -438,45 +453,123 @@ function footShell(m: Model, side: number, off: number, flat = 0, low = 1) {
 
 // Egg-shaped head: the crown follows the ellipsoid the hair caps are fitted
 // to, and the lower half narrows into a chin.
-function headGeometry(center: Vector3, r: Vector3) {
+const HEAD_LOWER: [number, number, number, number][] = [
+  [-0.108, 0.018, 0.02, 0.026],
+  [-0.097, 0.038, 0.046, 0.024],
+  [-0.075, 0.056, 0.068, 0.018],
+  [-0.045, 0.071, 0.085, 0.01],
+  [-0.018, 0.082, 0.096, 0.004],
+  [0, 0.086, 0.1, 0],
+]
+const lowerRx = curve(HEAD_LOWER.map((q) => [q[0], q[1]]))
+const lowerRz = curve(HEAD_LOWER.map((q) => [q[0], q[2]]))
+const lowerCz = curve(HEAD_LOWER.map((q) => [q[0], q[3]]))
+
+function headProfile(r: Vector3, dy: number) {
   const k = r.x / 0.086
-  const lower: [number, number, number, number][] = [
-    [-0.108, 0.018, 0.02, 0.026],
-    [-0.097, 0.038, 0.046, 0.024],
-    [-0.075, 0.056, 0.068, 0.018],
-    [-0.045, 0.071, 0.085, 0.01],
-    [-0.018, 0.082, 0.096, 0.004],
-    [0, 0.086, 0.1, 0],
-  ]
-  const rx = curve(lower.map((q) => [q[0], q[1]]))
-  const rz = curve(lower.map((q) => [q[0], q[2]]))
-  const cz = curve(lower.map((q) => [q[0], q[3]]))
+  if (dy < 0) {
+    return {
+      rx: lowerRx(dy / k) * k,
+      rz: lowerRz(dy / k) * k * (r.z / r.x / (0.1 / 0.086)),
+      cz: lowerCz(dy / k) * k,
+    }
+  }
+  const e = Math.sqrt(Math.max(0, 1 - (dy / r.y) ** 2))
+  return { rx: r.x * e, rz: r.z * e, cz: 0 }
+}
+
+function headGeometry(center: Vector3, r: Vector3) {
   const frames: Frame[] = []
-  const bottom = -0.108 * k
+  const bottom = -0.108 * (r.x / 0.086)
   const rings = 34
   for (let i = 0; i < rings; i += 1) {
     const t = i / (rings - 1)
     const dy = t < 0.5 ? bottom * (1 - t * 2) : r.y * 0.985 * Math.sin(((t - 0.5) * 2 * Math.PI) / 2)
-    let x: number
-    let z: number
-    let shift: number
-    if (dy < 0) {
-      x = rx(dy / k) * k
-      z = rz(dy / k) * k * (r.z / r.x / (0.1 / 0.086))
-      shift = cz(dy / k) * k
-    } else {
-      const e = Math.sqrt(Math.max(0, 1 - (dy / r.y) ** 2))
-      x = r.x * e
-      z = r.z * e
-      shift = 0
-    }
+    const p = headProfile(r, dy)
     frames.push({
-      c: new Vector3(center.x, center.y + dy, center.z + shift),
-      x: new Vector3(x, 0, 0),
-      z: new Vector3(0, 0, z),
+      c: new Vector3(center.x, center.y + dy, center.z + p.cz),
+      x: new Vector3(p.rx, 0, 0),
+      z: new Vector3(0, 0, p.rz),
     })
   }
   return tube(frames, 36, { capStart: true, capEnd: true })
+}
+
+// A small feature laid on the face: radii in its own frame, turned to follow
+// the curve of the head.
+function feature(radii: Vector3, yaw: number, roll = 0, offset = new Vector3()) {
+  const geometry = new SphereGeometry(1, 20, 14)
+  geometry.scale(radii.x, radii.y, radii.z)
+  geometry.translate(offset.x, offset.y, offset.z)
+  geometry.rotateZ(roll)
+  geometry.rotateY(yaw)
+  return geometry
+}
+
+function face(m: Model, parts: Part[]) {
+  const { head, headR } = m.L
+  const woman = m.sex === "woman"
+  const surface = (x: number, dy: number) => {
+    const p = headProfile(headR, dy)
+    const along = Math.min(0.98, Math.abs(x) / p.rx)
+    return {
+      point: new Vector3(x, head.y + dy, head.z + p.cz + p.rz * Math.sqrt(1 - along * along)),
+      yaw: Math.asin(along) * Math.sign(x) * 0.85,
+    }
+  }
+  const eyeY = 0.004
+  const eyeX = 0.031 * (headR.x / 0.086)
+  for (const side of [-1, 1]) {
+    const { point, yaw } = surface(side * eyeX, eyeY)
+    const roll = side * (woman ? 0.1 : 0.06)
+    const center = point.clone().add(new Vector3(0, 0, -0.004))
+    parts.push({
+      geometry: feature(new Vector3(woman ? 0.0155 : 0.0145, woman ? 0.0108 : 0.0098, 0.006), yaw, roll),
+      material: "eyeWhite",
+      position: center,
+      blink: true,
+    })
+    parts.push({
+      geometry: feature(new Vector3(0.0082, 0.009, 0.004), yaw, 0, new Vector3(0, -0.0003, 0.0038)),
+      material: "iris",
+      position: center,
+      blink: true,
+    })
+    parts.push({
+      geometry: feature(new Vector3(0.0022, 0.0022, 0.0015), yaw, 0, new Vector3(0.0028, 0.003, 0.0072)),
+      material: "eyeShine",
+      position: center,
+      blink: true,
+    })
+    const lid = surface(side * eyeX, eyeY + 0.0098)
+    parts.push({
+      geometry: feature(new Vector3(woman ? 0.0165 : 0.0155, 0.0019, 0.004), lid.yaw, roll, new Vector3(0, 0, 0.0005)),
+      material: "brow",
+      position: lid.point.clone().add(new Vector3(0, 0, -0.002)),
+    })
+    const brow = surface(side * (eyeX + 0.003), eyeY + (woman ? 0.027 : 0.024))
+    parts.push({
+      geometry: feature(
+        new Vector3(woman ? 0.017 : 0.019, woman ? 0.0028 : 0.0042, 0.004),
+        brow.yaw,
+        side * (woman ? 0.1 : 0.05),
+      ),
+      material: "brow",
+      position: brow.point.clone().add(new Vector3(0, 0, -0.001)),
+    })
+  }
+  const upper = surface(0, -0.059)
+  parts.push({
+    geometry: feature(new Vector3(woman ? 0.0165 : 0.0175, woman ? 0.0042 : 0.0034, 0.005), 0),
+    material: "lips",
+    position: upper.point.clone().add(new Vector3(0, 0, -0.002)),
+  })
+  const lower = surface(0, woman ? -0.067 : -0.0655)
+  parts.push({
+    geometry: feature(new Vector3(woman ? 0.014 : 0.0145, woman ? 0.0052 : 0.004, 0.0055), 0),
+    material: "lips",
+    position: lower.point.clone().add(new Vector3(0, 0, -0.0025)),
+  })
 }
 
 // Skin that clothing covers completely is left out, so it can never show
@@ -852,6 +945,7 @@ export function buildParts(c: Shape): Part[] {
   const m = model(c)
   const parts: Part[] = []
   body(m, coverage(m, c), parts)
+  face(m, parts)
   hair(m, c, parts)
   if (c.underwear) {
     underwear(m, parts)

@@ -55,7 +55,9 @@ export default function Experience() {
   const roomDoorRef = useRef(0)
   const lookRef = useRef<LookOffset>({ yaw: 0, pitch: 0 })
   const dragRef = useRef<{ x: number; y: number; yaw: number; pitch: number } | null>(null)
-  const [character, setCharacter] = useState<Character | null>(() => loadCharacter())
+  const [saved] = useState(() => loadCharacter())
+  const [character, setCharacter] = useState<Character | null>(saved?.character ?? null)
+  const [created, setCreated] = useState(saved?.created ?? false)
   const avatarYawRef = useRef(0)
   const spinRef = useRef<{ x: number; yaw: number } | null>(null)
 
@@ -137,11 +139,22 @@ export default function Experience() {
     go("room")
   }, [go, phase])
 
-  const updateCharacter = useCallback((next: Character, discrete: boolean) => {
-    setCharacter(next)
-    saveCharacter(next)
-    if (discrete) sound.clothes()
-  }, [])
+  // A character being created stays a draft until it is confirmed.
+  const updateCharacter = useCallback(
+    (next: Character, discrete: boolean) => {
+      setCharacter(next)
+      if (created) saveCharacter(next)
+      if (discrete) sound.clothes()
+    },
+    [created],
+  )
+
+  const createCharacter = useCallback(() => {
+    if (!character) return
+    saveCharacter(character)
+    setCreated(true)
+    sound.clothes()
+  }, [character])
 
   const chooseBody = useCallback(
     (sex: Sex) => updateCharacter(baseCharacter(sex), true),
@@ -390,7 +403,9 @@ export default function Experience() {
         open={phase === "wardrobe"}
         character={character}
         onChoose={chooseBody}
+        created={created}
         onChange={updateCharacter}
+        onCreate={createCharacter}
         onDone={closeWardrobe}
         onTurn={turnAvatar}
       />

@@ -18,6 +18,7 @@ import {
   SKIN,
   TOPS,
   TOP_COLORS,
+  SEX_LABEL,
   baseOutfit,
   heightMeters,
   switchSex,
@@ -34,15 +35,19 @@ const chrome =
 export function WardrobePanel({
   open,
   character,
+  created,
   onChoose,
   onChange,
+  onCreate,
   onDone,
   onTurn,
 }: {
   open: boolean
   character: Character | null
+  created: boolean
   onChoose: (sex: Sex) => void
   onChange: (next: Character, discrete: boolean) => void
+  onCreate: () => void
   onDone: () => void
   onTurn: (step: number) => void
 }) {
@@ -100,8 +105,8 @@ export function WardrobePanel({
       >
         <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-3">
           <div>
-            <p className="text-[10px] tracking-[0.32em] text-[#f3ead7]/60">BEDROOM</p>
-            <h2 className="font-serif text-2xl leading-tight">Wardrobe</h2>
+            <p className="text-[10px] tracking-[0.32em] text-[#f3ead7]/60">{created ? "BEDROOM" : "NEW CHARACTER"}</p>
+            <h2 className="font-serif text-2xl leading-tight">{created ? "Wardrobe" : "Create your character"}</h2>
           </div>
           <button
             type="button"
@@ -113,10 +118,12 @@ export function WardrobePanel({
           </button>
         </div>
 
-        {character ? (
-          <Editor character={character} onChange={onChange} onDone={onDone} />
-        ) : (
+        {!character ? (
           <Chooser onChoose={onChoose} />
+        ) : created ? (
+          <Dresser character={character} onChange={onChange} onDone={onDone} />
+        ) : (
+          <Creator character={character} onChange={onChange} onCreate={onCreate} />
         )}
       </aside>
     </>
@@ -124,27 +131,25 @@ export function WardrobePanel({
 }
 
 function Chooser({ onChoose }: { onChoose: (sex: Sex) => void }) {
-  const choices: { sex: Sex; title: string; outfit: string }[] = [
-    { sex: "man", title: "Slim man", outfit: "Grey T-shirt, dark straight jeans, white sneakers" },
-    { sex: "woman", title: "Slim woman", outfit: "White T-shirt, straight jeans, white sneakers" },
-  ]
+  const choices: Sex[] = ["man", "woman"]
   return (
     <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 pb-5">
       <div>
         <p className="font-serif text-xl">Who is in the mirror?</p>
-        <p className="mt-1 text-sm text-[#f3ead7]/70">Choose a base body. You can switch at any time.</p>
+        <p className="mt-1 text-sm text-[#f3ead7]/70">
+          Pick a body, then set height, skin tone and hair. Clothes come once your character is created.
+        </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {choices.map((choice) => (
+        {choices.map((sex) => (
           <button
-            key={choice.sex}
+            key={sex}
             type="button"
-            onClick={() => onChoose(choice.sex)}
+            onClick={() => onChoose(sex)}
             className="group flex flex-col items-center gap-3 rounded-3xl border border-[#f3ead7]/20 bg-[#f3ead7]/5 px-3 pt-4 pb-4 text-center transition-colors hover:border-[#c6a15a] hover:bg-[#f3ead7]/10 focus-visible:ring-2 focus-visible:ring-[#c6a15a] focus-visible:outline-none"
           >
-            <Silhouette sex={choice.sex} />
-            <span className="text-base font-medium">{choice.title}</span>
-            <span className="text-xs leading-snug text-[#f3ead7]/65">{choice.outfit}</span>
+            <Silhouette sex={sex} />
+            <span className="text-base font-medium">{SEX_LABEL[sex]}</span>
           </button>
         ))}
       </div>
@@ -172,7 +177,80 @@ function Silhouette({ sex }: { sex: Sex }) {
   )
 }
 
-function Editor({
+function BodyFields({
+  character,
+  onChange,
+}: {
+  character: Character
+  onChange: (next: Character, discrete: boolean) => void
+}) {
+  const set = <K extends keyof Character>(key: K, value: Character[K], discrete = true) =>
+    onChange({ ...character, [key]: value }, discrete)
+  return (
+    <div className="flex flex-col gap-5">
+      <Section title="Body">
+        <div className="grid grid-cols-2 gap-1 rounded-full bg-[#f3ead7]/10 p-1">
+          {(["man", "woman"] as Sex[]).map((sex) => (
+            <button
+              key={sex}
+              type="button"
+              aria-pressed={character.sex === sex}
+              onClick={() => onChange(switchSex(character, sex), true)}
+              className={cn(
+                "h-8 rounded-full text-sm transition-colors",
+                character.sex === sex ? "bg-[#f3ead7] text-[#2a1c14]" : "text-[#f6f0e6]/80 hover:bg-white/10",
+              )}
+            >
+              {SEX_LABEL[sex]}
+            </button>
+          ))}
+        </div>
+      </Section>
+      <Range
+        label="Height"
+        value={character.height}
+        display={`${Math.round(heightMeters(character) * 100)} cm`}
+        onChange={(value) => set("height", value, false)}
+      />
+      <Section title="Skin tone">
+        <Swatches options={SKIN} value={character.skin} onPick={(color) => set("skin", color)} />
+      </Section>
+      <Section title="Hair">
+        <Chips options={HAIR} value={character.hair} onPick={(id) => set("hair", id)} />
+        <Swatches options={HAIR_COLORS} value={character.hairColor} onPick={(color) => set("hairColor", color)} />
+      </Section>
+    </div>
+  )
+}
+
+const scroller =
+  "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 [scrollbar-color:rgba(243,234,215,0.25)_transparent]"
+
+function Creator({
+  character,
+  onChange,
+  onCreate,
+}: {
+  character: Character
+  onChange: (next: Character, discrete: boolean) => void
+  onCreate: () => void
+}) {
+  return (
+    <>
+      <div className={scroller}>
+        <BodyFields character={character} onChange={onChange} />
+      </div>
+      <div className="flex flex-col gap-2 border-t border-[#f3ead7]/12 px-5 py-3">
+        <p className="text-xs text-[#f3ead7]/60">Your character starts in the base outfit. You can dress them next.</p>
+        <Button className="h-10 w-full rounded-full" onClick={onCreate}>
+          Create character
+        </Button>
+      </div>
+    </>
+  )
+}
+
+function Dresser({
   character,
   onChange,
   onDone,
@@ -186,66 +264,14 @@ function Editor({
   const dressed = !character.underwear
   return (
     <>
-      <Tabs defaultValue="body" className="min-h-0 flex-1 gap-0">
+      <Tabs defaultValue="clothes" className="min-h-0 flex-1 gap-0">
         <div className="px-5 pb-3">
           <TabsList>
-            <TabsTrigger value="body">Body</TabsTrigger>
             <TabsTrigger value="clothes">Clothes</TabsTrigger>
+            <TabsTrigger value="body">Edit character</TabsTrigger>
           </TabsList>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 [scrollbar-color:rgba(243,234,215,0.25)_transparent]">
-          <TabsContent value="body" className="flex flex-col gap-5">
-            <Section title="Base body">
-              <div className="grid grid-cols-2 gap-1 rounded-full bg-[#f3ead7]/10 p-1">
-                {(["man", "woman"] as Sex[]).map((sex) => (
-                  <button
-                    key={sex}
-                    type="button"
-                    aria-pressed={character.sex === sex}
-                    onClick={() => onChange(switchSex(character, sex), true)}
-                    className={cn(
-                      "h-8 rounded-full text-sm transition-colors",
-                      character.sex === sex ? "bg-[#f3ead7] text-[#2a1c14]" : "text-[#f6f0e6]/80 hover:bg-white/10",
-                    )}
-                  >
-                    {sex === "man" ? "Slim man" : "Slim woman"}
-                  </button>
-                ))}
-              </div>
-            </Section>
-            <Range
-              label="Height"
-              value={character.height}
-              display={`${Math.round(heightMeters(character) * 100)} cm`}
-              onChange={(value) => set("height", value, false)}
-            />
-            <Range
-              label="Build"
-              value={character.build}
-              display={character.build < 0.34 ? "Slim" : character.build < 0.67 ? "Medium" : "Broad"}
-              onChange={(value) => set("build", value, false)}
-            />
-            <Range
-              label="Shoulders"
-              value={character.shoulders}
-              display={character.shoulders < 0.34 ? "Narrow" : character.shoulders < 0.67 ? "Average" : "Broad"}
-              onChange={(value) => set("shoulders", value, false)}
-            />
-            <Range
-              label="Hips"
-              value={character.hips}
-              display={character.hips < 0.34 ? "Narrow" : character.hips < 0.67 ? "Average" : "Wide"}
-              onChange={(value) => set("hips", value, false)}
-            />
-            <Section title="Skin tone">
-              <Swatches options={SKIN} value={character.skin} onPick={(color) => set("skin", color)} />
-            </Section>
-            <Section title="Hair">
-              <Chips options={HAIR} value={character.hair} onPick={(id) => set("hair", id)} />
-              <Swatches options={HAIR_COLORS} value={character.hairColor} onPick={(color) => set("hairColor", color)} />
-            </Section>
-          </TabsContent>
-
+        <div className={scroller}>
           <TabsContent value="clothes" className="flex flex-col gap-5">
             <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-[#f3ead7]/15 bg-[#f3ead7]/5 px-4 py-3">
               <span>
@@ -274,6 +300,9 @@ function Editor({
                 )}
               </Section>
             </div>
+          </TabsContent>
+          <TabsContent value="body">
+            <BodyFields character={character} onChange={onChange} />
           </TabsContent>
         </div>
       </Tabs>

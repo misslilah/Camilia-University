@@ -8,9 +8,6 @@ export type Outer = "none" | "jacket" | "cardigan" | "coat"
 export type Character = {
   sex: Sex
   height: number
-  build: number
-  shoulders: number
-  hips: number
   skin: string
   hair: Hair
   hairColor: string
@@ -134,9 +131,6 @@ const BASE: Record<Sex, Character> = {
   man: {
     sex: "man",
     height: 0.5,
-    build: 0.25,
-    shoulders: 0.5,
-    hips: 0.5,
     skin: SKIN[1].color,
     hair: "short",
     hairColor: HAIR_COLORS[1].color,
@@ -153,9 +147,6 @@ const BASE: Record<Sex, Character> = {
   woman: {
     sex: "woman",
     height: 0.5,
-    build: 0.25,
-    shoulders: 0.5,
-    hips: 0.5,
     skin: SKIN[1].color,
     hair: "long",
     hairColor: HAIR_COLORS[2].color,
@@ -174,6 +165,8 @@ const BASE: Record<Sex, Character> = {
 export function baseCharacter(sex: Sex): Character {
   return { ...BASE[sex] }
 }
+
+export const SEX_LABEL: Record<Sex, string> = { man: "Men", woman: "Women" }
 
 export function baseOutfit(character: Character): Character {
   const base = BASE[character.sex]
@@ -196,9 +189,6 @@ export function switchSex(character: Character, sex: Sex): Character {
   return {
     ...baseCharacter(sex),
     height: character.height,
-    build: character.build,
-    shoulders: character.shoulders,
-    hips: character.hips,
     skin: character.skin,
     underwear: character.underwear,
   }
@@ -223,19 +213,19 @@ function unit(value: unknown, fallback: number) {
   return typeof value === "number" && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : fallback
 }
 
-export function loadCharacter(): Character | null {
+export type Saved = { character: Character; created: boolean }
+
+// Saves from before the creation step have no flag; they were already made.
+export function loadCharacter(): Saved | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const data = JSON.parse(raw) as Record<string, unknown>
     if (data.sex !== "man" && data.sex !== "woman") return null
     const base = BASE[data.sex]
-    return {
+    const character: Character = {
       sex: data.sex,
       height: unit(data.height, base.height),
-      build: unit(data.build, base.build),
-      shoulders: unit(data.shoulders, base.shoulders),
-      hips: unit(data.hips, base.hips),
       skin: color(data.skin, base.skin),
       hair: oneOf(data.hair, HAIR, base.hair),
       hairColor: color(data.hairColor, base.hairColor),
@@ -249,6 +239,7 @@ export function loadCharacter(): Character | null {
       outerColor: color(data.outerColor, base.outerColor),
       underwear: data.underwear === true,
     }
+    return { character, created: data.created !== false }
   } catch {
     return null
   }
@@ -256,7 +247,7 @@ export function loadCharacter(): Character | null {
 
 export function saveCharacter(character: Character) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(character))
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...character, created: true }))
   } catch {
     // Storage can be blocked; the character still lasts for this visit.
   }
