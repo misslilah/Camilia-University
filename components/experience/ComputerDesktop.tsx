@@ -1,0 +1,611 @@
+"use client"
+
+import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react"
+import {
+  ArrowLeft,
+  Folder,
+  Globe,
+  GraduationCap,
+  LogOut,
+  Minus,
+  NotebookPen,
+  Power,
+  Trash2,
+  Volume2,
+  Wifi,
+  X,
+  type LucideIcon,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { PANEL_BREAKPOINT } from "@/lib/scene"
+import { useScreenRect, type ScreenRect } from "@/lib/screen-rect"
+import { sound } from "@/lib/sound"
+import { cn } from "@/lib/utils"
+
+type AppId = "files" | "courses" | "browser" | "notes" | "trash"
+
+const APPS: { id: AppId; name: string; icon: LucideIcon; tint: string }[] = [
+  { id: "files", name: "My Files", icon: Folder, tint: "from-[#e8b04a] to-[#c98a24]" },
+  { id: "courses", name: "Courses", icon: GraduationCap, tint: "from-[#7f5bd6] to-[#5435a8]" },
+  { id: "browser", name: "Browser", icon: Globe, tint: "from-[#4c8df0] to-[#2a5fc4]" },
+  { id: "notes", name: "Notes", icon: NotebookPen, tint: "from-[#4ac17a] to-[#2b8d55]" },
+  { id: "trash", name: "Trash", icon: Trash2, tint: "from-[#8b93a3] to-[#5d6575]" },
+]
+
+const app = (id: AppId) => APPS.find((item) => item.id === id) ?? APPS[0]
+
+const TASKBAR = 48
+const CELL = { w: 92, h: 98, pad: 14 }
+const DOUBLE_TAP_MS = 400
+
+type Cell = { col: number; row: number }
+type Win = { app: AppId; x: number; y: number; z: number; minimized: boolean }
+
+const narrowQuery = `(max-width: ${PANEL_BREAKPOINT - 1}px)`
+
+function subscribeNarrow(listener: () => void) {
+  const media = window.matchMedia(narrowQuery)
+  media.addEventListener("change", listener)
+  return () => media.removeEventListener("change", listener)
+}
+
+export function useNarrow() {
+  return useSyncExternalStore(
+    subscribeNarrow,
+    () => window.matchMedia(narrowQuery).matches,
+    () => false,
+  )
+}
+
+function useClock(active: boolean) {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    if (!active) return
+    const tick = () => setNow(new Date())
+    tick()
+    const id = window.setInterval(tick, 1000)
+    return () => window.clearInterval(id)
+  }, [active])
+  return now
+}
+
+export function ComputerDesktop({ open, onLeave }: { open: boolean; onLeave: () => void }) {
+  const live = useScreenRect()
+  const [last, setLast] = useState<ScreenRect | null>(null)
+  if (live && live !== last) setLast(live)
+  const rect = live ?? last
+  const narrow = useNarrow()
+  const visible = open && live !== null
+
+  // The desktop is laid out at a comfortable size and scaled down onto small
+  // screens; on phones it fills the page instead.
+  const scale = narrow || !rect ? 1 : Math.min(1, rect.width / 1000)
+
+  return (
+    <>
+      <div
+        aria-hidden={!visible}
+        inert={!visible}
+        className={cn(
+          "pointer-events-none absolute bottom-7 left-16 z-20 hidden transition-opacity duration-300 sm:block",
+          visible ? "opacity-100" : "opacity-0",
+        )}
+      >
+        <Button
+          variant="outline"
+          className="pointer-events-auto rounded-full border-[#f3ead7]/30 bg-[#1a120e]/55 text-[#f6f0e6] backdrop-blur-md hover:bg-[#f3ead7] hover:text-[#2a1c14]"
+          onClick={onLeave}
+        >
+          <ArrowLeft />
+          Back to the room
+        </Button>
+      </div>
+      <div
+        role="application"
+        aria-label="Computer desktop"
+        aria-hidden={!visible}
+        inert={!visible}
+        data-computer
+        className={cn(
+          "absolute z-20 overflow-hidden transition-opacity ease-out select-none",
+          narrow ? "inset-0" : "rounded-[3px]",
+          visible ? "opacity-100 duration-500" : "pointer-events-none opacity-0 duration-200",
+        )}
+        style={narrow || !rect ? undefined : { left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
+      >
+        {rect && (
+          <div
+            className="origin-top-left"
+            style={
+              narrow
+                ? { width: "100%", height: "100%" }
+                : { width: rect.width / scale, height: rect.height / scale, transform: `scale(${scale})` }
+            }
+          >
+            <Desktop active={visible} scale={scale} onLeave={onLeave} />
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+function Desktop({ active, scale, onLeave }: { active: boolean; scale: number; onLeave: () => void }) {
+  const area = useRef<HTMLDivElement>(null)
+  const [cells, setCells] = useState<Record<AppId, Cell>>(() =>
+    Object.fromEntries(APPS.map((item, row) => [item.id, { col: 0, row }])) as Record<AppId, Cell>,
+  )
+  const [selected, setSelected] = useState<AppId | null>(null)
+  const [windows, setWindows] = useState<Win[]>([])
+  const [menu, setMenu] = useState(false)
+  const [drag, setDrag] = useState<{ app: AppId; x: number; y: number } | null>(null)
+  const press = useRef<{ app: AppId; x: number; y: number; dx: number; dy: number; moved: boolean } | null>(null)
+  const lastTap = useRef<{ app: AppId; at: number } | null>(null)
+  const top = useRef(1)
+  const now = useClock(active)
+  const menuOpen = menu && active
+
+  const size = () => {
+    const el = area.current
+    return { w: el ? el.clientWidth : 800, h: el ? el.clientHeight : 500 }
+  }
+
+  const focused = windows.filter((win) => !win.minimized).sort((a, b) => b.z - a.z)[0]?.app ?? null
+
+  const raise = (id: AppId) => {
+    top.current += 1
+    const z = top.current
+    setWindows((list) => list.map((win) => (win.app === id ? { ...win, z, minimized: false } : win)))
+  }
+
+  const openApp = (id: AppId) => {
+    setMenu(false)
+    setSelected(id)
+    sound.click()
+    top.current += 1
+    const z = top.current
+    setWindows((list) => {
+      if (list.some((win) => win.app === id)) {
+        return list.map((win) => (win.app === id ? { ...win, z, minimized: false } : win))
+      }
+      const { w, h } = size()
+      const width = Math.min(420, w - 24)
+      const n = list.length
+      const x = Math.max(12, Math.min(w - width - 12, (w - width) / 2 + (n - 1) * 28))
+      const y = Math.max(12, Math.min(h - 240, h * 0.16 + n * 26))
+      return [...list, { app: id, x, y, z, minimized: false }]
+    })
+  }
+
+  const minimize = (id: AppId) => setWindows((list) => list.map((win) => (win.app === id ? { ...win, minimized: true } : win)))
+  const close = (id: AppId) => setWindows((list) => list.filter((win) => win.app !== id))
+
+  const iconDown = (id: AppId, event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return
+    event.stopPropagation()
+    setMenu(false)
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const cell = cells[id]
+    press.current = {
+      app: id,
+      x: event.clientX,
+      y: event.clientY,
+      dx: CELL.pad + cell.col * CELL.w,
+      dy: CELL.pad + cell.row * CELL.h,
+      moved: false,
+    }
+  }
+
+  const iconMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const p = press.current
+    if (!p) return
+    const dx = (event.clientX - p.x) / scale
+    const dy = (event.clientY - p.y) / scale
+    if (!p.moved && Math.hypot(dx, dy) < 5) return
+    p.moved = true
+    setDrag({ app: p.app, x: p.dx + dx, y: p.dy + dy })
+  }
+
+  const iconUp = (id: AppId, at: number) => {
+    const p = press.current
+    press.current = null
+    if (p?.moved && drag) {
+      const { w, h } = size()
+      const cols = Math.max(1, Math.floor((w - CELL.pad) / CELL.w))
+      const rows = Math.max(1, Math.floor((h - CELL.pad) / CELL.h))
+      const col = Math.max(0, Math.min(cols - 1, Math.round((drag.x - CELL.pad) / CELL.w)))
+      const row = Math.max(0, Math.min(rows - 1, Math.round((drag.y - CELL.pad) / CELL.h)))
+      setCells((current) => {
+        const from = current[id]
+        const next = { ...current, [id]: { col, row } }
+        const other = APPS.find((item) => item.id !== id && current[item.id].col === col && current[item.id].row === row)
+        if (other) next[other.id] = from
+        return next
+      })
+      setDrag(null)
+      setSelected(id)
+      return
+    }
+    setDrag(null)
+    if (lastTap.current?.app === id && at - lastTap.current.at < DOUBLE_TAP_MS) {
+      lastTap.current = null
+      openApp(id)
+      return
+    }
+    lastTap.current = { app: id, at }
+    setSelected(id)
+  }
+
+  return (
+    <div
+      className="relative flex h-full w-full flex-col overflow-hidden bg-[#08112a] font-sans text-[#eef2fb]"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && menuOpen) {
+          event.preventDefault()
+          setMenu(false)
+        }
+      }}
+    >
+      <Wallpaper />
+      <div
+        ref={area}
+        className="relative min-h-0 flex-1"
+        onPointerDown={() => {
+          setSelected(null)
+          setMenu(false)
+        }}
+      >
+        {APPS.map((item) => {
+          const cell = cells[item.id]
+          const dragging = drag?.app === item.id
+          const Icon = item.icon
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-label={item.name}
+              aria-pressed={selected === item.id}
+              onPointerDown={(event) => iconDown(item.id, event)}
+              onPointerMove={iconMove}
+              onPointerUp={(event) => iconUp(item.id, event.timeStamp)}
+              onPointerCancel={() => {
+                press.current = null
+                setDrag(null)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault()
+                  openApp(item.id)
+                } else if (event.key === " ") {
+                  event.preventDefault()
+                  setSelected(item.id)
+                }
+              }}
+              className={cn(
+                "absolute flex w-[84px] touch-none flex-col items-center gap-1.5 rounded-xl px-1 pt-2 pb-1.5 outline-none focus-visible:ring-2 focus-visible:ring-[#c6a15a]",
+                selected === item.id ? "bg-white/18 ring-1 ring-white/35" : "hover:bg-white/10",
+                dragging ? "z-30 cursor-grabbing opacity-90" : "transition-[left,top] duration-200",
+              )}
+              style={{
+                left: dragging ? drag.x : CELL.pad + cell.col * CELL.w,
+                top: dragging ? drag.y : CELL.pad + cell.row * CELL.h,
+              }}
+            >
+              <span
+                className={cn(
+                  "grid h-12 w-12 place-items-center rounded-[14px] bg-gradient-to-br shadow-[0_6px_16px_rgba(0,0,0,0.35)]",
+                  item.tint,
+                )}
+              >
+                <Icon className="h-6 w-6 text-white" strokeWidth={1.8} />
+              </span>
+              <span className="text-center text-[12px] leading-tight [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">{item.name}</span>
+            </button>
+          )
+        })}
+
+        {windows.map((win) => (
+          <AppWindow
+            key={win.app}
+            win={win}
+            focused={focused === win.app}
+            scale={scale}
+            bounds={size}
+            onFocus={() => raise(win.app)}
+            onMove={(x, y) => setWindows((list) => list.map((item) => (item.app === win.app ? { ...item, x, y } : item)))}
+            onMinimize={() => minimize(win.app)}
+            onClose={() => close(win.app)}
+          />
+        ))}
+
+        {menuOpen && <StartMenu onOpen={openApp} onLeave={onLeave} />}
+      </div>
+
+      <Taskbar
+        now={now}
+        windows={windows}
+        focused={focused}
+        menuOpen={menuOpen}
+        onStart={() => setMenu((value) => !value)}
+        onTask={(id) => {
+          setMenu(false)
+          const win = windows.find((item) => item.app === id)
+          if (win && focused === id && !win.minimized) minimize(id)
+          else raise(id)
+        }}
+        onLeave={onLeave}
+      />
+    </div>
+  )
+}
+
+function Crest({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 72" className={className} aria-hidden>
+      <path
+        d="M32 3 L59 12 V34 C59 51 47 63 32 69 C17 63 5 51 5 34 V12 Z"
+        fill="rgba(15,29,61,0.65)"
+        stroke="#c6a15a"
+        strokeWidth="2.4"
+      />
+      <path d="M32 10 L52 17 V34 C52 47 43 56 32 61 C21 56 12 47 12 34 V17 Z" fill="none" stroke="#c6a15a" strokeOpacity="0.45" strokeWidth="1" />
+      <text x="32" y="45" textAnchor="middle" fontFamily="var(--font-cormorant), serif" fontSize="30" fontWeight="600" fill="#e9d3a1">
+        C
+      </text>
+    </svg>
+  )
+}
+
+function Wallpaper() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_38%,#1f3a70_0%,#11234a_42%,#08112a_100%)]" />
+      <div className="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(rgba(255,255,255,0.6)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.6)_1px,transparent_1px)] [background-size:56px_56px]" />
+      <div className="absolute inset-x-0 top-[34%] flex -translate-y-1/2 flex-col items-center gap-3">
+        <Crest className="h-20 w-[72px] drop-shadow-[0_8px_24px_rgba(0,0,0,0.45)]" />
+        <div className="text-center">
+          <p className="font-serif text-4xl tracking-wide text-[#f3ead7]">Camilia</p>
+          <p className="mt-1 text-[10px] tracking-[0.42em] text-[#c6a15a]">UNIVERSITY</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AppWindow({
+  win,
+  focused,
+  scale,
+  bounds,
+  onFocus,
+  onMove,
+  onMinimize,
+  onClose,
+}: {
+  win: Win
+  focused: boolean
+  scale: number
+  bounds: () => { w: number; h: number }
+  onFocus: () => void
+  onMove: (x: number, y: number) => void
+  onMinimize: () => void
+  onClose: () => void
+}) {
+  const grab = useRef<{ x: number; y: number; wx: number; wy: number } | null>(null)
+  const meta = app(win.app)
+  const Icon = meta.icon
+  const { w } = bounds()
+  const width = Math.min(420, w - 24)
+
+  return (
+    <section
+      role="dialog"
+      aria-label={meta.name}
+      hidden={win.minimized}
+      onPointerDown={(event) => {
+        event.stopPropagation()
+        onFocus()
+      }}
+      className={cn(
+        "absolute flex flex-col overflow-hidden rounded-xl border bg-[#f7f5f0] text-[#1d2433] shadow-[0_24px_60px_rgba(0,0,0,0.45)]",
+        focused ? "border-white/60" : "border-white/25 opacity-95",
+      )}
+      style={{ left: win.x, top: win.y, width, zIndex: win.z }}
+    >
+      <header
+        className={cn(
+          "flex h-10 cursor-grab touch-none items-center gap-2 pr-1.5 pl-3 active:cursor-grabbing",
+          focused ? "bg-[#1d2a4a] text-white" : "bg-[#3a4560] text-white/80",
+        )}
+        onPointerDown={(event) => {
+          if (event.button !== 0) return
+          event.currentTarget.setPointerCapture(event.pointerId)
+          grab.current = { x: event.clientX, y: event.clientY, wx: win.x, wy: win.y }
+        }}
+        onPointerMove={(event) => {
+          const g = grab.current
+          if (!g) return
+          const area = bounds()
+          const x = g.wx + (event.clientX - g.x) / scale
+          const y = g.wy + (event.clientY - g.y) / scale
+          onMove(Math.max(-width + 80, Math.min(area.w - 80, x)), Math.max(0, Math.min(area.h - 40, y)))
+        }}
+        onPointerUp={() => {
+          grab.current = null
+        }}
+        onPointerCancel={() => {
+          grab.current = null
+        }}
+      >
+        <Icon className="h-4 w-4 opacity-80" />
+        <span className="flex-1 truncate text-[13px] font-medium">{meta.name}</span>
+        <button
+          type="button"
+          aria-label={`Minimize ${meta.name}`}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={onMinimize}
+          className="grid h-7 w-7 place-items-center rounded-md hover:bg-white/15"
+        >
+          <Minus className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          aria-label={`Close ${meta.name}`}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={onClose}
+          className="grid h-7 w-7 place-items-center rounded-md hover:bg-[#e85d5d]"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </header>
+      <div className="flex flex-col items-center gap-3 px-6 pt-7 pb-8 text-center">
+        <span className={cn("grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br shadow-md", meta.tint)}>
+          <Icon className="h-7 w-7 text-white" strokeWidth={1.8} />
+        </span>
+        <p className="font-serif text-2xl">{meta.name} is coming soon</p>
+        <p className="max-w-[300px] text-sm text-[#1d2433]/65">
+          This app is not available yet. It will open here in a future update of the Camilia desktop.
+        </p>
+      </div>
+    </section>
+  )
+}
+
+function StartMenu({ onOpen, onLeave }: { onOpen: (id: AppId) => void; onLeave: () => void }) {
+  return (
+    <div
+      role="menu"
+      aria-label="Start"
+      onPointerDown={(event) => event.stopPropagation()}
+      className="absolute bottom-2 left-2 z-[999] w-[260px] overflow-hidden rounded-2xl border border-white/15 bg-[#0d1830]/92 shadow-[0_24px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+    >
+      <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-[#c6a15a] font-serif text-lg text-[#14213f]">S</span>
+        <div>
+          <p className="text-sm font-medium">Student</p>
+          <p className="text-[11px] text-white/55">Camilia University</p>
+        </div>
+      </div>
+      <div className="flex flex-col p-1.5">
+        {APPS.map((item) => {
+          const Icon = item.icon
+          return (
+            <button
+              key={item.id}
+              type="button"
+              role="menuitem"
+              onClick={() => onOpen(item.id)}
+              className="flex h-10 items-center gap-3 rounded-lg px-2.5 text-left text-[13px] hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
+            >
+              <span className={cn("grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br", item.tint)}>
+                <Icon className="h-4 w-4 text-white" />
+              </span>
+              {item.name}
+            </button>
+          )
+        })}
+      </div>
+      <div className="border-t border-white/10 p-1.5">
+        <button
+          type="button"
+          role="menuitem"
+          onClick={onLeave}
+          className="flex h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
+        >
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/10">
+            <Power className="h-4 w-4" />
+          </span>
+          Shut down
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function Taskbar({
+  now,
+  windows,
+  focused,
+  menuOpen,
+  onStart,
+  onTask,
+  onLeave,
+}: {
+  now: Date
+  windows: Win[]
+  focused: AppId | null
+  menuOpen: boolean
+  onStart: () => void
+  onTask: (id: AppId) => void
+  onLeave: () => void
+}) {
+  return (
+    <div
+      className="relative z-[1000] flex shrink-0 items-center gap-1.5 border-t border-white/10 bg-[#0a1428]/82 px-2 backdrop-blur-xl"
+      style={{ height: TASKBAR }}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        aria-label="Start"
+        aria-expanded={menuOpen}
+        onClick={onStart}
+        className={cn(
+          "grid h-9 w-9 place-items-center rounded-lg transition-colors hover:bg-white/12 focus-visible:ring-2 focus-visible:ring-[#c6a15a] focus-visible:outline-none",
+          menuOpen && "bg-white/15",
+        )}
+      >
+        <Crest className="h-6 w-6" />
+      </button>
+      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+        {windows.map((win) => {
+          const meta = app(win.app)
+          const Icon = meta.icon
+          const current = focused === win.app && !win.minimized
+          return (
+            <button
+              key={win.app}
+              type="button"
+              aria-label={meta.name}
+              aria-pressed={current}
+              onClick={() => onTask(win.app)}
+              className={cn(
+                "relative flex h-9 min-w-0 items-center gap-2 rounded-lg px-2 text-[12px] transition-colors hover:bg-white/12",
+                current ? "bg-white/15" : "text-white/75",
+              )}
+            >
+              <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-md bg-gradient-to-br", meta.tint)}>
+                <Icon className="h-3.5 w-3.5 text-white" />
+              </span>
+              <span className="hidden truncate sm:inline">{meta.name}</span>
+              <span
+                className={cn(
+                  "absolute bottom-0.5 left-1/2 h-[3px] -translate-x-1/2 rounded-full bg-[#c6a15a]",
+                  current ? "w-4" : "w-1.5 opacity-70",
+                )}
+              />
+            </button>
+          )
+        })}
+      </div>
+      <div className="flex items-center gap-2.5 pr-1 text-white/80">
+        <Wifi className="h-4 w-4" aria-label="Connected" />
+        <Volume2 className="h-4 w-4" aria-label="Volume" />
+        <div className="text-right leading-tight tabular-nums">
+          <p className="text-[12px]">{now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+          <p className="text-[10px] text-white/55">
+            {now.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-label="Back to the room"
+          onClick={onLeave}
+          className="grid h-8 w-8 place-items-center rounded-lg hover:bg-white/12 focus-visible:ring-2 focus-visible:ring-[#c6a15a] focus-visible:outline-none"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  )
+}

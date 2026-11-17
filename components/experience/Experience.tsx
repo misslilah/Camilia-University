@@ -7,6 +7,7 @@ import { ACESFilmicToneMapping, SRGBColorSpace } from "three"
 import { FlatCampus } from "@/components/flat-campus"
 import { Blackboard, Signage } from "@/components/experience/Blackboard"
 import { Director, type LookOffset } from "@/components/experience/Director"
+import { ComputerDesktop, useNarrow } from "@/components/experience/ComputerDesktop"
 import { Doors } from "@/components/experience/Doors"
 import { Hall, Lights, Motes } from "@/components/experience/Hall"
 import { Hud } from "@/components/experience/Hud"
@@ -15,6 +16,7 @@ import { WardrobePanel } from "@/components/experience/WardrobePanel"
 import { baseCharacter, loadCharacter, saveCharacter, type Character, type Sex } from "@/lib/avatar"
 import { setCursor } from "@/lib/cursor"
 import { FADE_ID } from "@/lib/fade"
+import { useScreenRect } from "@/lib/screen-rect"
 import { sound } from "@/lib/sound"
 import {
   CHAPTERS,
@@ -36,6 +38,11 @@ export default function Experience() {
   })
   const [phase, setPhase] = useState<Phase>("arrival")
   const [phaseAt, setPhaseAt] = useState(0)
+  const screenRect = useScreenRect()
+  const narrow = useNarrow()
+  // On phones the desktop covers the whole page once the camera settles, so
+  // the scene underneath can stop rendering until something invalidates it.
+  const covered = phase === "computer" && narrow && screenRect !== null
   const [seatId, setSeatId] = useState<string | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
   const [focused, setFocused] = useState<string | null>(null)
@@ -136,6 +143,20 @@ export default function Experience() {
     spinRef.current = null
     lookRef.current = { yaw: 0, pitch: 0 }
     sound.wardrobeClose()
+    go("room")
+  }, [go, phase])
+
+  const openComputer = useCallback(() => {
+    if (phase !== "room") return
+    setCursor("auto")
+    sound.computerOpen()
+    go("computer")
+  }, [go, phase])
+
+  const closeComputer = useCallback(() => {
+    if (phase !== "computer") return
+    lookRef.current = { yaw: 0, pitch: 0 }
+    sound.computerClose()
     go("room")
   }, [go, phase])
 
@@ -248,6 +269,10 @@ export default function Experience() {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      if (phase === "computer") {
+        if (event.key === "Escape" && !event.defaultPrevented) closeComputer()
+        return
+      }
       const target = event.target
       if (target instanceof HTMLElement && target.closest("button, a, input, textarea, [role=slider], [role=tab]")) return
       if (phase === "arrival" && (event.key === "Enter" || event.key === " ")) {
@@ -292,7 +317,7 @@ export default function Experience() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [chapterId, closeChapter, closeWardrobe, focused, leaveHall, leaveRoom, openChapter, openDoors, phase, pickSeat, settled, skip, stand, turnAvatar])
+  }, [chapterId, closeChapter, closeComputer, closeWardrobe, focused, leaveHall, leaveRoom, openChapter, openDoors, phase, pickSeat, settled, skip, stand, turnAvatar])
 
   if (!webgl) return <FlatCampus />
 
@@ -322,6 +347,7 @@ export default function Experience() {
     >
       <Canvas
         shadows
+        frameloop={covered ? "demand" : "always"}
         dpr={[1, 1.5]}
         camera={{ position: OUTSIDE.position, fov: OUTSIDE.fov, near: 0.05, far: 90 }}
         gl={{
@@ -333,7 +359,7 @@ export default function Experience() {
       >
         <color attach="background" args={["#cbb89f"]} />
         <Lights seated={phase === "sitting"} away={inRoom(phase)} openRef={openRef} />
-        <group visible={phase !== "wardrobe"}>
+        <group visible={phase !== "wardrobe" && phase !== "computer"}>
           <Hall />
           <Doors openRef={openRef} phase={phase} onOpen={openDoors} />
           <RoomDoor phase={phase} amountRef={roomDoorRef} onOpen={enterRoom} />
@@ -355,6 +381,7 @@ export default function Experience() {
           character={character}
           avatarYawRef={avatarYawRef}
           onWardrobe={openWardrobe}
+          onComputer={openComputer}
         />
         <Director
           phase={phase}
@@ -391,6 +418,7 @@ export default function Experience() {
         muted={muted}
         onToggleSound={toggleSound}
       />
+      <ComputerDesktop open={phase === "computer"} onLeave={closeComputer} />
       <WardrobePanel
         open={phase === "wardrobe"}
         character={character}

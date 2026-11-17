@@ -9,6 +9,7 @@ export type Phase =
   | "toRoom"
   | "room"
   | "wardrobe"
+  | "computer"
   | "fromRoom"
 
 export type Chapter = {
@@ -81,7 +82,22 @@ export const ROOM_VIEW = {
 }
 
 export function inRoom(phase: Phase) {
-  return phase === "room" || phase === "wardrobe" || phase === "fromRoom"
+  return phase === "room" || phase === "wardrobe" || phase === "computer" || phase === "fromRoom"
+}
+
+// Bedroom-local placement of the desk; the monitor screen sits on it.
+export const DESK = { x: 0.48, z: -ROOM.depth / 2 + 0.34 }
+
+export const SCREEN = {
+  center: [ROOM_ORIGIN[0] + DESK.x - 0.08, 0.758 + 0.43, ROOM_ORIGIN[2] + DESK.z - 0.12 + 0.019] as Vec3,
+  width: 0.62,
+  height: 0.35,
+}
+
+export const COMPUTER_FOV = 38
+
+export function computerDuration(reduced: boolean) {
+  return reduced ? 0.3 : 1.25
 }
 
 // Bedroom-local placements for the wardrobe corner.

@@ -10,6 +10,7 @@ import { AVATAR_LAYER, type Character } from "@/lib/avatar"
 import { setCursor } from "@/lib/cursor"
 import {
   AVATAR_SPOT,
+  DESK,
   MIRROR,
   ROOM,
   ROOM_DOOR,
@@ -61,12 +62,14 @@ export function Bedroom({
   character,
   avatarYawRef,
   onWardrobe,
+  onComputer,
 }: {
   phase: Phase
   reduced: boolean
   character: Character | null
   avatarYawRef: { current: number }
   onWardrobe: () => void
+  onComputer: () => void
 }) {
   const active = inRoom(phase)
   return (
@@ -75,7 +78,7 @@ export function Bedroom({
         <Shell />
         <Bed />
         <Nightstand />
-        <Desk />
+        <Desk phase={phase} onOpen={onComputer} />
         <DeskChair />
         <Wardrobe phase={phase} onOpen={onWardrobe} reduced={reduced} />
         <Mirror lit={active} />
@@ -260,12 +263,18 @@ function Nightstand() {
   )
 }
 
-function Desk() {
+function Desk({ phase, onOpen }: { phase: Phase; onOpen: () => void }) {
   const t = useMemo(() => getRoomTextures(), [])
-  const x = 0.48
-  const z = -HALF_D + 0.34
+  const enabled = phase === "room"
+  const [hover, setHover] = useState(false)
+  const lit = hover && enabled
+
+  useEffect(() => {
+    if (!enabled) setCursor("auto")
+  }, [enabled])
+
   return (
-    <group position={[x, 0, z]}>
+    <group position={[DESK.x, 0, DESK.z]}>
       <Block box={[0, 0.74, 0, 1.36, 0.035, 0.64]} color="#f0ede6" roughness={0.45} />
       {[
         [-0.64, -0.28],
@@ -277,13 +286,32 @@ function Desk() {
       ))}
       <Block box={[0, 0.66, -0.29, 1.28, 0.1, 0.02]} color="#2c2f36" metalness={0.6} roughness={0.35} />
 
-      <group position={[-0.08, 0.758, -0.12]}>
+      <group
+        position={[-0.08, 0.758, -0.12]}
+        onClick={(event) => {
+          event.stopPropagation()
+          if (enabled && event.delta < 10) onOpen()
+        }}
+        onPointerOver={(event) => {
+          event.stopPropagation()
+          if (!enabled) return
+          setHover(true)
+          setCursor("pointer")
+        }}
+        onPointerOut={() => {
+          setHover(false)
+          setCursor("auto")
+        }}
+      >
         <Block box={[0, 0.006, 0, 0.24, 0.012, 0.16]} color="#24272e" metalness={0.4} roughness={0.4} />
         <Block box={[0, 0.15, -0.02, 0.04, 0.28, 0.03]} color="#24272e" metalness={0.4} roughness={0.4} />
-        <Block box={[0, 0.42, 0.0, 0.66, 0.4, 0.035]} color="#121318" roughness={0.35} />
+        <mesh position={[0, 0.42, 0]} castShadow receiveShadow>
+          <boxGeometry args={[0.66, 0.4, 0.035]} />
+          <meshStandardMaterial color="#121318" roughness={0.35} emissive={lit ? "#3d6fd1" : "#000000"} emissiveIntensity={0.35} />
+        </mesh>
         <mesh position={[0, 0.43, 0.019]}>
           <planeGeometry args={[0.62, 0.35]} />
-          <meshStandardMaterial map={t.screen} emissiveMap={t.screen} emissive="#ffffff" emissiveIntensity={0.95} roughness={0.3} />
+          <meshStandardMaterial map={t.screen} emissiveMap={t.screen} emissive="#ffffff" emissiveIntensity={lit ? 1.2 : 0.95} roughness={0.3} />
         </mesh>
       </group>
 

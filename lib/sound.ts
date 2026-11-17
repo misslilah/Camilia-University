@@ -516,6 +516,28 @@ class HallSound {
     ])
   }
 
+  computerOpen() {
+    this.silence(this.playing)
+    this.play([
+      { clip: "step-wood-1", at: 0, gain: 0.22, pan: -0.1, wet: 0.04, rate: 1.04 },
+      { clip: "chair-creak", at: 0.32, gain: 0.2, pan: -0.15, wet: 0.04, rate: 1.1 },
+      { clip: "chair-sit", at: 0.5, gain: 0.18, pan: -0.1, wet: 0.04, rate: 1.08 },
+      { clip: "door-latch", at: 1.05, gain: 0.09, pan: 0.05, wet: 0.02, rate: 2.1 },
+    ])
+  }
+
+  computerClose() {
+    this.silence(this.playing)
+    this.play([
+      { clip: "chair-stand", at: 0, gain: 0.18, pan: -0.1, wet: 0.04, rate: 1.08 },
+      { clip: "step-wood-3", at: 0.45, gain: 0.2, pan: 0.05, wet: 0.04, rate: 1.03 },
+    ])
+  }
+
+  click() {
+    this.play([{ clip: "door-latch", at: 0, gain: 0.07, wet: 0.02, rate: 2.3, length: 0.2 }])
+  }
+
   hallReturn() {
     this.silence(this.playing)
     this.play([

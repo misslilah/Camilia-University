@@ -4,16 +4,20 @@ import { useEffect, useRef } from "react"
 import { useFrame } from "@react-three/fiber"
 import { PerspectiveCamera, Vector3 } from "three"
 import { setFade } from "@/lib/fade"
+import { setScreenRect } from "@/lib/screen-rect"
 import {
+  COMPUTER_FOV,
   INSIDE,
   OUTSIDE,
   ROOM_APPROACH,
   PANEL_BREAKPOINT,
   PANEL_WIDTH,
   ROOM_VIEW,
+  SCREEN,
   SHEET_HEIGHT,
   SIT_FOV,
   WARDROBE_VIEW,
+  computerDuration,
   doorAmount,
   enterDuration,
   fromRoomDuration,
@@ -32,7 +36,9 @@ import {
 
 export type LookOffset = { yaw: number; pitch: number }
 
-type Mode = "hold" | "enter" | "lerp" | "leaving" | "toRoom" | "room" | "wardrobe" | "fromRoom"
+type Mode = "hold" | "enter" | "lerp" | "leaving" | "toRoom" | "room" | "wardrobe" | "computer" | "fromRoom"
+
+const corner = new Vector3()
 
 export function Director({
   phase,
@@ -76,6 +82,7 @@ export function Director({
     duration: 1,
     mode: "hold" as Mode,
     toFov: OUTSIDE.fov,
+    fromFov: OUTSIDE.fov,
     notified: false,
     fade: 0,
     blend: 1,
@@ -130,7 +137,7 @@ export function Director({
         roomTurn.current = { yaw: 0, pitch: 0 }
         motion.toFov = narrow ? 74 : ROOM_VIEW.fov
         motion.duration = wardrobeDuration(reduced)
-        if (previous === "wardrobe") {
+        if (previous === "wardrobe" || previous === "computer") {
           motion.blend = 0
         } else {
           motion.blend = 1
@@ -143,6 +150,11 @@ export function Director({
       } else if (phase === "wardrobe") {
         motion.mode = "wardrobe"
         motion.duration = wardrobeDuration(reduced)
+      } else if (phase === "computer") {
+        motion.mode = "computer"
+        motion.duration = computerDuration(reduced)
+        motion.fromFov = camera.fov
+        motion.toFov = COMPUTER_FOV
       } else if (phase === "fromRoom") {
         motion.mode = "fromRoom"
         motion.duration = fromRoomDuration(reduced)
@@ -259,6 +271,24 @@ export function Director({
       toL.current.set(...pose.look)
       camera.position.lerpVectors(fromP.current, toP.current, eased)
       look.current.lerpVectors(fromL.current, toL.current, eased)
+    } else if (motion.mode === "computer") {
+      motion.fade = Math.max(0, motion.fade - delta / (reduced ? 0.25 : 0.7))
+      motion.elapsed += delta
+      const eased = smootherstep(Math.min(1, motion.elapsed / motion.duration))
+      const tan = Math.tan((COMPUTER_FOV * Math.PI) / 360)
+      const { width, height } = state.size
+      // On phones the desktop fills the page, so the camera just zooms into the
+      // screen; elsewhere the whole screen stays in view.
+      const dist =
+        width < PANEL_BREAKPOINT
+          ? SCREEN.height / 2 / tan / 0.5
+          : Math.max(SCREEN.height / 2 / tan / 0.8, SCREEN.width / 2 / (tan * (width / height)) / 0.86)
+      toP.current.set(SCREEN.center[0], SCREEN.center[1], SCREEN.center[2] + dist)
+      toL.current.set(...SCREEN.center)
+      camera.position.lerpVectors(fromP.current, toP.current, eased)
+      look.current.lerpVectors(fromL.current, toL.current, eased)
+      camera.fov = motion.fromFov + (COMPUTER_FOV - motion.fromFov) * eased
+      camera.updateProjectionMatrix()
     } else if (motion.mode === "fromRoom") {
       motion.elapsed += delta
       motion.fade = Math.min(1, motion.elapsed / motion.duration)
@@ -301,6 +331,32 @@ export function Director({
       camera.updateProjectionMatrix()
     }
     camera.lookAt(look.current)
+
+    if (motion.mode === "computer" && motion.elapsed >= motion.duration) {
+      camera.updateMatrixWorld()
+      let left = Infinity
+      let right = -Infinity
+      let top = Infinity
+      let bottom = -Infinity
+      for (const [sx, sy] of [
+        [-1, -1],
+        [1, -1],
+        [-1, 1],
+        [1, 1],
+      ]) {
+        corner.set(SCREEN.center[0] + (sx * SCREEN.width) / 2, SCREEN.center[1] + (sy * SCREEN.height) / 2, SCREEN.center[2])
+        corner.project(camera)
+        const x = ((corner.x + 1) / 2) * width
+        const y = ((1 - corner.y) / 2) * height
+        left = Math.min(left, x)
+        right = Math.max(right, x)
+        top = Math.min(top, y)
+        bottom = Math.max(bottom, y)
+      }
+      setScreenRect({ left, top, width: right - left, height: bottom - top })
+    } else {
+      setScreenRect(null)
+    }
   })
 
   return null

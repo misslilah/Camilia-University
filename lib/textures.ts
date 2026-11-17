@@ -182,6 +182,100 @@ function largeTexture(width: number, height: number, draw: (ctx: CanvasRendering
   return texture
 }
 
+// The monitor shows the same desktop the DOM overlay draws up close, so the
+// hand-over when the camera arrives is seamless.
+function drawDesktop(ctx: CanvasRenderingContext2D) {
+  const w = 1024
+  const h = 578
+  const bar = 40
+  const sky = ctx.createRadialGradient(w / 2, h * 0.34, 10, w / 2, h * 0.38, w * 0.62)
+  sky.addColorStop(0, "#1f3a70")
+  sky.addColorStop(0.42, "#11234a")
+  sky.addColorStop(1, "#08112a")
+  ctx.fillStyle = sky
+  ctx.fillRect(0, 0, w, h)
+  ctx.strokeStyle = "rgba(255,255,255,0.045)"
+  ctx.lineWidth = 1
+  for (let x = 0; x < w; x += 48) {
+    ctx.beginPath()
+    ctx.moveTo(x + 0.5, 0)
+    ctx.lineTo(x + 0.5, h)
+    ctx.stroke()
+  }
+  for (let y = 0; y < h; y += 48) {
+    ctx.beginPath()
+    ctx.moveTo(0, y + 0.5)
+    ctx.lineTo(w, y + 0.5)
+    ctx.stroke()
+  }
+
+  const cx = w / 2
+  const cy = (h - bar) * 0.34
+  const shield = (scale: number, ox: number, oy: number) => {
+    ctx.beginPath()
+    ctx.moveTo(ox, oy - 33 * scale)
+    ctx.lineTo(ox + 27 * scale, oy - 24 * scale)
+    ctx.lineTo(ox + 27 * scale, oy - 2 * scale)
+    ctx.bezierCurveTo(ox + 27 * scale, oy + 15 * scale, ox + 15 * scale, oy + 27 * scale, ox, oy + 33 * scale)
+    ctx.bezierCurveTo(ox - 15 * scale, oy + 27 * scale, ox - 27 * scale, oy + 15 * scale, ox - 27 * scale, oy - 2 * scale)
+    ctx.lineTo(ox - 27 * scale, oy - 24 * scale)
+    ctx.closePath()
+  }
+  shield(1.05, cx, cy - 46)
+  ctx.fillStyle = "rgba(15,29,61,0.65)"
+  ctx.fill()
+  ctx.strokeStyle = "#c6a15a"
+  ctx.lineWidth = 2.4
+  ctx.stroke()
+  ctx.fillStyle = "#e9d3a1"
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+  ctx.font = "600 30px Georgia, serif"
+  ctx.fillText("C", cx, cy - 44)
+  ctx.fillStyle = "#f3ead7"
+  ctx.font = "34px Georgia, serif"
+  ctx.fillText("Camilia", cx, cy + 22)
+  ctx.fillStyle = "#c6a15a"
+  ctx.font = "9px sans-serif"
+  ctx.fillText("U N I V E R S I T Y", cx, cy + 48)
+
+  const tints = [
+    ["#e8b04a", "#c98a24"],
+    ["#7f5bd6", "#5435a8"],
+    ["#4c8df0", "#2a5fc4"],
+    ["#4ac17a", "#2b8d55"],
+    ["#8b93a3", "#5d6575"],
+  ]
+  tints.forEach(([a, b], i) => {
+    const x = 28
+    const y = 20 + i * 84
+    const tile = ctx.createLinearGradient(x, y, x + 41, y + 41)
+    tile.addColorStop(0, a)
+    tile.addColorStop(1, b)
+    ctx.fillStyle = tile
+    ctx.beginPath()
+    ctx.roundRect(x, y, 41, 41, 12)
+    ctx.fill()
+    ctx.fillStyle = "rgba(255,255,255,0.75)"
+    ctx.fillRect(x + 4, y + 50, 33, 5)
+  })
+
+  ctx.fillStyle = "rgba(10,20,40,0.88)"
+  ctx.fillRect(0, h - bar, w, bar)
+  ctx.fillStyle = "rgba(255,255,255,0.1)"
+  ctx.fillRect(0, h - bar, w, 1)
+  shield(0.36, 22, h - bar / 2)
+  ctx.strokeStyle = "#c6a15a"
+  ctx.lineWidth = 1.6
+  ctx.stroke()
+  ctx.fillStyle = "rgba(255,255,255,0.7)"
+  ctx.fillRect(w - 118, h - bar / 2 - 5, 12, 10)
+  ctx.fillRect(w - 98, h - bar / 2 - 5, 12, 10)
+  ctx.fillRect(w - 76, h - bar / 2 - 6, 34, 6)
+  ctx.fillStyle = "rgba(255,255,255,0.4)"
+  ctx.fillRect(w - 76, h - bar / 2 + 3, 30, 4)
+}
+
 export function getRoomTextures(): RoomTextures {
   if (roomCache) return roomCache
   roomCache = {
@@ -215,56 +309,7 @@ export function getRoomTextures(): RoomTextures {
         }
       }
     }, 4, 4),
-    screen: largeTexture(512, 320, (ctx) => {
-      const sky = ctx.createLinearGradient(0, 0, 0, 320)
-      sky.addColorStop(0, "#0f2f63")
-      sky.addColorStop(0.62, "#2d6fc4")
-      sky.addColorStop(1, "#7fb6ea")
-      ctx.fillStyle = sky
-      ctx.fillRect(0, 0, 512, 320)
-      ctx.fillStyle = "#16365a"
-      ctx.beginPath()
-      ctx.moveTo(0, 250)
-      ctx.lineTo(110, 175)
-      ctx.lineTo(200, 230)
-      ctx.lineTo(310, 150)
-      ctx.lineTo(420, 220)
-      ctx.lineTo(512, 185)
-      ctx.lineTo(512, 300)
-      ctx.lineTo(0, 300)
-      ctx.fill()
-      ctx.fillStyle = "rgba(10,18,32,0.92)"
-      ctx.fillRect(0, 296, 512, 24)
-      ;["#e8b04a", "#4ac17a", "#e85d5d", "#7aa7ff"].forEach((color, i) => {
-        ctx.fillStyle = color
-        ctx.fillRect(12 + i * 26, 302, 16, 12)
-      })
-      ctx.fillStyle = "rgba(255,255,255,0.85)"
-      ctx.font = "13px sans-serif"
-      ctx.fillText("16:42", 464, 313)
-      ctx.fillStyle = "rgba(14,22,38,0.94)"
-      ctx.fillRect(150, 46, 300, 196)
-      ctx.fillStyle = "#24324d"
-      ctx.fillRect(150, 46, 300, 20)
-      ;["#e85d5d", "#e8b04a", "#4ac17a"].forEach((color, i) => {
-        ctx.fillStyle = color
-        ctx.beginPath()
-        ctx.arc(162 + i * 14, 56, 4, 0, Math.PI * 2)
-        ctx.fill()
-      })
-      const code = ["#7aa7ff", "#e8b04a", "#cfd8e6", "#4ac17a", "#cfd8e6", "#e85d5d", "#7aa7ff", "#cfd8e6"]
-      code.forEach((color, i) => {
-        ctx.fillStyle = color
-        const indent = [0, 16, 16, 32, 32, 16, 0, 16][i]
-        ctx.fillRect(164 + indent, 80 + i * 18, 60 + ((i * 47) % 140), 7)
-      })
-      for (let i = 0; i < 4; i += 1) {
-        ctx.fillStyle = "rgba(255,255,255,0.18)"
-        ctx.fillRect(22, 30 + i * 58, 40, 40)
-        ctx.fillStyle = ["#e8b04a", "#7aa7ff", "#4ac17a", "#e85d5d"][i]
-        ctx.fillRect(30, 38 + i * 58, 24, 24)
-      }
-    }),
+    screen: largeTexture(1024, 578, drawDesktop),
     poster: largeTexture(256, 360, (ctx) => {
       ctx.fillStyle = "#0e1630"
       ctx.fillRect(0, 0, 256, 360)
