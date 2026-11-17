@@ -1,21 +1,13 @@
 export type FurnitureKind =
   | "bed"
-  | "bunk"
-  | "daybed"
   | "desk"
   | "standing-desk"
-  | "corner-desk"
   | "office-chair"
-  | "armchair"
-  | "stool"
   | "wardrobe"
-  | "bookcase"
-  | "dresser"
   | "floor-lamp"
   | "desk-lamp"
   | "pendant"
   | "plant"
-  | "mirror"
   | "rug"
   | "frame"
   | "clock"
@@ -48,27 +40,6 @@ export function FurnitureArt({ kind, color }: { kind: FurnitureKind; color: stri
           <rect x="100" y="68" width="4" height="10" fill={dark} />
         </g>
       )}
-      {kind === "bunk" && (
-        <g>
-          <rect x="22" y="10" width="5" height="68" fill={dark} />
-          <rect x="93" y="10" width="5" height="68" fill={dark} />
-          <rect x="27" y="26" width="66" height="7" fill={color} />
-          <rect x="27" y="21" width="66" height="5" rx="2" fill="#fbfaf7" />
-          <rect x="27" y="62" width="66" height="7" fill={color} />
-          <rect x="27" y="57" width="66" height="5" rx="2" fill="#fbfaf7" />
-          <rect x="80" y="33" width="3" height="24" fill={dark} />
-        </g>
-      )}
-      {kind === "daybed" && (
-        <g>
-          <rect x="16" y="34" width="88" height="22" rx="4" fill={dark} />
-          <rect x="18" y="52" width="84" height="14" rx="3" fill={color} />
-          <rect x="24" y="40" width="22" height="13" rx="4" fill={light} />
-          <rect x="74" y="40" width="22" height="13" rx="4" fill={light} />
-          <rect x="22" y="66" width="4" height="12" fill={metal} />
-          <rect x="94" y="66" width="4" height="12" fill={metal} />
-        </g>
-      )}
       {kind === "desk" && (
         <g>
           <rect x="14" y="36" width="92" height="6" rx="1.5" fill={color} />
@@ -88,14 +59,6 @@ export function FurnitureArt({ kind, color }: { kind: FurnitureKind; color: stri
           <rect x="48" y="12" width="24" height="12" rx="1" fill="#2a2f3a" />
         </g>
       )}
-      {kind === "corner-desk" && (
-        <g>
-          <path d="M14 34 H106 V42 H46 V48 H14 Z" fill={color} />
-          <rect x="16" y="48" width="4" height="30" fill={dark} />
-          <rect x="100" y="42" width="4" height="36" fill={dark} />
-          <rect x="40" y="48" width="4" height="30" fill={dark} />
-        </g>
-      )}
       {kind === "office-chair" && (
         <g>
           <rect x="42" y="12" width="36" height="34" rx="9" fill={color} />
@@ -107,23 +70,6 @@ export function FurnitureArt({ kind, color }: { kind: FurnitureKind; color: stri
           <circle cx="60" cy="76" r="3" fill="#1d2027" />
         </g>
       )}
-      {kind === "armchair" && (
-        <g>
-          <rect x="32" y="20" width="56" height="34" rx="10" fill={dark} />
-          <rect x="24" y="40" width="14" height="30" rx="6" fill={color} />
-          <rect x="82" y="40" width="14" height="30" rx="6" fill={color} />
-          <rect x="36" y="50" width="48" height="16" rx="5" fill={light} />
-          <rect x="30" y="70" width="4" height="8" fill="#6d4c31" />
-          <rect x="86" y="70" width="4" height="8" fill="#6d4c31" />
-        </g>
-      )}
-      {kind === "stool" && (
-        <g>
-          <ellipse cx="60" cy="30" rx="20" ry="6" fill={color} />
-          <path d="M46 34 L40 78 M74 34 L80 78 M56 36 L54 78 M64 36 L66 78" stroke={dark} strokeWidth="3.5" strokeLinecap="round" />
-          <rect x="44" y="58" width="32" height="3" rx="1.5" fill={dark} />
-        </g>
-      )}
       {kind === "wardrobe" && (
         <g>
           <rect x="30" y="8" width="60" height="70" rx="2" fill={color} />
@@ -131,39 +77,6 @@ export function FurnitureArt({ kind, color }: { kind: FurnitureKind; color: stri
           <rect x="61" y="11" width="26" height="64" rx="1" fill={light} />
           <rect x="55" y="38" width="2" height="10" rx="1" fill={metal} />
           <rect x="63" y="38" width="2" height="10" rx="1" fill={metal} />
-        </g>
-      )}
-      {kind === "bookcase" && (
-        <g>
-          <rect x="32" y="8" width="56" height="70" fill={color} />
-          {[0, 1, 2, 3].map((row) => (
-            <g key={row}>
-              <rect x="36" y={12 + row * 16} width="48" height="13" fill={dark} />
-              {[0, 1, 2, 3, 4].map((book) => (
-                <rect
-                  key={book}
-                  x={38 + book * 7 + (row % 2) * 6}
-                  y={14 + row * 16 + (book % 3)}
-                  width="5"
-                  height={11 - (book % 3)}
-                  fill={["#c0503a", "#3d6f9e", "#e1b54c", "#4e8a5b", "#8a5aa6"][(book + row) % 5]}
-                />
-              ))}
-            </g>
-          ))}
-        </g>
-      )}
-      {kind === "dresser" && (
-        <g>
-          <rect x="26" y="26" width="68" height="46" rx="2" fill={color} />
-          {[0, 1, 2].map((row) => (
-            <g key={row}>
-              <rect x="30" y={30 + row * 14} width="60" height="11" rx="1" fill={light} />
-              <rect x="56" y={34.5 + row * 14} width="8" height="2" rx="1" fill={metal} />
-            </g>
-          ))}
-          <rect x="30" y="72" width="4" height="6" fill={dark} />
-          <rect x="86" y="72" width="4" height="6" fill={dark} />
         </g>
       )}
       {kind === "floor-lamp" && (
@@ -195,13 +108,6 @@ export function FurnitureArt({ kind, color }: { kind: FurnitureKind; color: stri
           <path d="M60 50 C66 26 80 18 90 22 C82 30 70 40 62 52 Z" fill="#5f9e62" />
           <path d="M60 52 C58 30 60 14 64 8 C68 18 66 36 62 52 Z" fill="#3f7646" />
           <path d="M44 50 H76 L72 78 H48 Z" fill={color} />
-        </g>
-      )}
-      {kind === "mirror" && (
-        <g>
-          <rect x="42" y="6" width="36" height="72" rx="18" fill={color} />
-          <rect x="46" y="10" width="28" height="64" rx="14" fill="#cfdde6" />
-          <path d="M52 22 L64 14 M52 34 L70 22" stroke="#fff" strokeWidth="2.5" opacity="0.7" />
         </g>
       )}
       {kind === "rug" && (

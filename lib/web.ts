@@ -41,6 +41,21 @@ type WebState = { carts: Partial<Record<SiteId, Record<string, number>>>; unlock
 const STORAGE_KEY = "camilia-web"
 const EMPTY: WebState = { carts: {}, unlocked: [] }
 
+// Products removed from a shop. Saved carts drop these lines so counts and
+// the drawer stay in step with the catalog.
+const RETIRED_PRODUCTS: Partial<Record<SiteId, ReadonlySet<string>>> = {
+  avazon: new Set([
+    "pine-bunk-bed",
+    "linen-daybed",
+    "corner-desk-l",
+    "reading-armchair",
+    "bar-stool-oak",
+    "tall-bookcase",
+    "three-drawer-dresser",
+    "arched-mirror",
+  ]),
+}
+
 let state: WebState | null = null
 const listeners = new Set<() => void>()
 
@@ -55,8 +70,9 @@ function read(): WebState {
       for (const site of SITES) {
         const cart = parsed.carts?.[site.id]
         if (!cart || typeof cart !== "object") continue
+        const retired = RETIRED_PRODUCTS[site.id]
         const clean = Object.fromEntries(
-          Object.entries(cart).filter(([, qty]) => Number.isInteger(qty) && qty > 0 && qty < 100),
+          Object.entries(cart).filter(([id, qty]) => Number.isInteger(qty) && qty > 0 && qty < 100 && !retired?.has(id)),
         )
         carts[site.id] = clean
       }
@@ -64,11 +80,25 @@ function read(): WebState {
         ? parsed.unlocked.filter((id): id is SiteId => SITES.some((site) => site.id === id))
         : []
       state = { carts, unlocked }
+      if (retiredProductsStored(parsed.carts)) {
+        try {
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+        } catch {}
+      }
     }
   } catch {
     state = EMPTY
   }
   return state
+}
+
+function retiredProductsStored(carts: WebState["carts"] | undefined) {
+  if (!carts) return false
+  return SITES.some((site) => {
+    const retired = RETIRED_PRODUCTS[site.id]
+    const cart = carts[site.id]
+    return Boolean(retired && cart && Object.keys(cart).some((id) => retired.has(id)))
+  })
 }
 
 function write(next: WebState) {
@@ -109,7 +139,7 @@ export function unlockSite(id: SiteId) {
 export function setCartQty(site: SiteId, product: string, qty: number) {
   const current = read()
   const cart = { ...current.carts[site] }
-  if (qty > 0) cart[product] = Math.min(99, qty)
+  if (qty > 0 && !RETIRED_PRODUCTS[site]?.has(product)) cart[product] = Math.min(99, qty)
   else delete cart[product]
   write({ ...current, carts: { ...current.carts, [site]: cart } })
 }
@@ -119,5 +149,6 @@ export function addToCart(site: SiteId, product: string) {
 }
 
 export function cartCount(web: WebState, site: SiteId) {
-  return Object.values(web.carts[site] ?? {}).reduce((sum, qty) => sum + qty, 0)
+  const retired = RETIRED_PRODUCTS[site]
+  return Object.entries(web.carts[site] ?? {}).reduce((sum, [id, qty]) => sum + (retired?.has(id) ? 0 : qty), 0)
 }

@@ -22,26 +22,19 @@ const ROWS: Record<string, Row[]> = {
   beds: [
     ["oak-platform-bed", "Oak platform bed, double", "bed", "#b58a5e", 329, 4.6, 2841, "Low solid-oak frame with a slatted base and a padded headboard."],
     ["navy-upholstered-bed", "Upholstered bed, navy", "bed", "#34456b", 449, 4.4, 1132, "Soft velvet-look upholstery and a tall channel-stitched headboard."],
-    ["pine-bunk-bed", "Pine bunk bed with ladder", "bunk", "#d2b48a", 279, 4.3, 864, "Two single berths, a fixed ladder and safety rails on the top bunk."],
-    ["linen-daybed", "Linen daybed with cushions", "daybed", "#9aa48d", 389, 4.5, 512, "A sofa by day and a single bed at night, with three loose cushions."],
   ],
   desks: [
     ["walnut-writing-desk", "Walnut writing desk", "desk", "#7a5235", 189, 4.7, 3920, "Compact desk with a side drawer, sized for a laptop and a lamp."],
     ["white-study-desk", "White study desk", "desk", "#e8e6e1", 129, 4.4, 6210, "Clean matte top and a cable cut-out at the back."],
     ["electric-standing-desk", "Electric standing desk", "standing-desk", "#c9a679", 399, 4.6, 2287, "Dual-motor frame with four height presets, from 72 to 120 cm."],
-    ["corner-desk-l", "L-shaped corner desk", "corner-desk", "#4b4d52", 219, 4.2, 980, "Wraps around a corner to fit two monitors and a printer."],
   ],
   chairs: [
     ["mesh-office-chair", "Ergonomic mesh office chair", "office-chair", "#2f3542", 249, 4.5, 8733, "Breathable mesh back, lumbar support and 4D armrests."],
     ["task-chair-blue", "Task chair, ocean blue", "office-chair", "#3c6fb0", 119, 4.1, 2405, "Light, height-adjustable chair for desks and study corners."],
-    ["reading-armchair", "Reading armchair, mustard", "armchair", "#d1a03b", 299, 4.7, 1487, "Deep seat, wide arms and solid beech legs."],
-    ["bar-stool-oak", "Oak bar stool", "stool", "#b58a5e", 69, 4.3, 655, "Counter-height stool with a footrest ring."],
   ],
   storage: [
     ["two-door-wardrobe", "Two-door wardrobe, oak", "wardrobe", "#b98f5f", 359, 4.4, 2190, "Hanging rail, a top shelf and soft-close doors."],
     ["white-wardrobe", "Wardrobe with mirror door, white", "wardrobe", "#ecebe6", 289, 4.2, 1361, "Slim wardrobe with a full-length mirror on one door."],
-    ["tall-bookcase", "Tall bookcase, five shelves", "bookcase", "#d7c3a0", 149, 4.6, 4022, "Adjustable shelves and wall anchoring included."],
-    ["three-drawer-dresser", "Three-drawer dresser", "dresser", "#8d6a4c", 199, 4.5, 1875, "Smooth runners and a top wide enough for a mirror."],
   ],
   lighting: [
     ["arc-floor-lamp", "Floor lamp with linen shade", "floor-lamp", "#efe6d2", 89, 4.5, 3017, "Warm, diffused light for reading corners."],
@@ -51,7 +44,6 @@ const ROWS: Record<string, Row[]> = {
   ],
   decor: [
     ["monstera-planter", "Faux monstera in a planter", "plant", "#d9d3c6", 35, 4.4, 2111, "Lifelike leaves that never need watering."],
-    ["arched-mirror", "Arched wall mirror", "mirror", "#c8a25a", 119, 4.7, 1693, "Slim metal frame, 50 × 120 cm."],
     ["wool-rug", "Wool rug, terracotta", "rug", "#c0694a", 159, 4.5, 908, "Hand-tufted rug, 160 × 230 cm."],
     ["framed-print", "Framed landscape print", "frame", "#2d2f35", 29, 4.6, 1320, "A4 print in a black frame with a white mount."],
     ["wall-clock", "Silent wall clock", "clock", "#3d5a80", 25, 4.3, 2466, "Sweep movement, so no ticking at night."],
