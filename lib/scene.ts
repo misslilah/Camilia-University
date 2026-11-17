@@ -96,25 +96,31 @@ export const WARDROBE = {
 export const MIRROR = {
   x: ROOM.width / 2 - 0.075,
   z: 0.32,
-  width: 0.56,
-  height: 1.62,
-  bottom: 0.13,
+  width: 0.58,
+  height: 1.7,
+  bottom: 0.12,
 }
 
-export const AVATAR_SPOT: Vec3 = [ROOM_ORIGIN[0] + 1.02, 0, ROOM_ORIGIN[2] + MIRROR.z]
+export const AVATAR_SPOT: Vec3 = [ROOM_ORIGIN[0] + 1.2, 0, ROOM_ORIGIN[2] + MIRROR.z]
 
+// The wardrobe panel covers part of the screen, so the camera keeps the
+// mirror square-on and a lens shift moves it into the free area.
 export const WARDROBE_VIEW = {
   wide: {
-    position: [ROOM_ORIGIN[0] - 0.55, 1.4, ROOM_ORIGIN[2] + MIRROR.z] as Vec3,
-    look: [ROOM_ORIGIN[0] + MIRROR.x, 0.98, ROOM_ORIGIN[2] + MIRROR.z + 0.5] as Vec3,
-    fov: 44,
+    position: [ROOM_ORIGIN[0] - 0.3, 1.36, ROOM_ORIGIN[2] + MIRROR.z] as Vec3,
+    look: [ROOM_ORIGIN[0] + MIRROR.x, 1.0, ROOM_ORIGIN[2] + MIRROR.z] as Vec3,
+    fov: 50,
   },
   narrow: {
-    position: [ROOM_ORIGIN[0] - 1.35, 1.25, ROOM_ORIGIN[2] + MIRROR.z] as Vec3,
-    look: [ROOM_ORIGIN[0] + MIRROR.x, 0.55, ROOM_ORIGIN[2] + MIRROR.z] as Vec3,
-    fov: 64,
+    position: [ROOM_ORIGIN[0] - 1.9, 1.2, ROOM_ORIGIN[2] + MIRROR.z] as Vec3,
+    look: [ROOM_ORIGIN[0] + MIRROR.x, 0.96, ROOM_ORIGIN[2] + MIRROR.z] as Vec3,
+    fov: 58,
   },
 }
+
+export const PANEL_BREAKPOINT = 640
+export const PANEL_WIDTH = 392
+export const SHEET_HEIGHT = 0.52
 
 export function wardrobeDuration(reduced: boolean) {
   return reduced ? 0.3 : 1.35

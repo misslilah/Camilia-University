@@ -53,7 +53,7 @@ export function WardrobePanel({
         inert={!open}
         className={cn(
           "pointer-events-none absolute z-20 flex gap-2 transition-opacity duration-500",
-          "top-20 left-4 sm:top-auto sm:bottom-7 sm:left-16",
+          "bottom-[calc(52dvh+0.75rem)] left-1/2 -translate-x-1/2 sm:bottom-7 sm:left-16 sm:translate-x-0",
           open ? "opacity-100" : "opacity-0",
         )}
       >

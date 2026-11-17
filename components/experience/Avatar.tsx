@@ -62,24 +62,25 @@ export function Avatar({
   const materials = useMemo(() => {
     // The mirror's oblique clip plane costs depth precision, so layers are
     // ordered with polygon offsets instead of relying on their few millimetres.
-    const cloth = (roughness: number, layer: number) =>
+    const cloth = (roughness: number, layer: number, open = false) =>
       new MeshStandardMaterial({
         roughness,
         metalness: 0,
-        side: DoubleSide,
+        side: open ? DoubleSide : FrontSide,
         polygonOffset: true,
         polygonOffsetFactor: -layer,
         polygonOffsetUnits: -layer * 4,
       })
     const map: Record<MaterialKey, MeshStandardMaterial> = {
       skin: new MeshStandardMaterial({ roughness: 0.52, metalness: 0, side: FrontSide }),
-      hair: cloth(0.62, 2),
+      hair: cloth(0.62, 2, true),
       underwear: cloth(0.8, 1),
       bottom: cloth(0.82, 2),
       shoes: cloth(0.5, 3),
       sole: cloth(0.7, 4),
       top: cloth(0.86, 4),
-      outer: cloth(0.78, 6),
+      trim: cloth(0.86, 5, true),
+      outer: cloth(0.78, 6, true),
       button: cloth(0.35, 7),
     }
     return map
@@ -91,6 +92,7 @@ export function Avatar({
     materials.skin.color.set(character.skin)
     materials.hair.color.set(character.hairColor)
     materials.top.color.set(character.topColor)
+    materials.trim.color.set(character.topColor)
     materials.bottom.color.set(character.bottomColor)
     materials.shoes.color.set(character.shoesColor)
     materials.sole.color.set(soleColor(character.shoesColor))

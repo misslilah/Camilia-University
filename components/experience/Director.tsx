@@ -8,7 +8,10 @@ import {
   INSIDE,
   OUTSIDE,
   ROOM_APPROACH,
+  PANEL_BREAKPOINT,
+  PANEL_WIDTH,
   ROOM_VIEW,
+  SHEET_HEIGHT,
   SIT_FOV,
   WARDROBE_VIEW,
   doorAmount,
@@ -65,6 +68,7 @@ export function Director({
   const toL = useRef(new Vector3())
   const roomBase = useRef(new Vector3())
   const roomTurn = useRef({ yaw: 0, pitch: 0 })
+  const shift = useRef({ x: 0, y: 0 })
   const anim = useRef({
     phase: "",
     seatId: "",
@@ -241,8 +245,9 @@ export function Director({
         look.current.copy(toL.current)
       }
     } else if (motion.mode === "wardrobe") {
+      motion.fade = Math.max(0, motion.fade - delta / (reduced ? 0.25 : 0.7))
       motion.elapsed += delta
-      const pose = narrow ? WARDROBE_VIEW.narrow : WARDROBE_VIEW.wide
+      const pose = state.size.width < PANEL_BREAKPOINT ? WARDROBE_VIEW.narrow : WARDROBE_VIEW.wide
       motion.toFov = pose.fov
       const eased = smootherstep(Math.min(1, motion.elapsed / motion.duration))
       const time = performance.now() / 1000
@@ -273,6 +278,23 @@ export function Director({
     }
 
     setFade(motion.fade)
+
+    const { width, height } = state.size
+    let goalX = 0
+    let goalY = 0
+    if (phase === "wardrobe") {
+      if (width < PANEL_BREAKPOINT) goalY = height * (SHEET_HEIGHT / 2)
+      else goalX = Math.min(PANEL_WIDTH, width * 0.4) / 2
+    }
+    const k = 1 - Math.exp(-delta * (reduced ? 12 : 2.6))
+    shift.current.x += (goalX - shift.current.x) * k
+    shift.current.y += (goalY - shift.current.y) * k
+    if (Math.abs(shift.current.x) + Math.abs(shift.current.y) > 0.5) {
+      camera.setViewOffset(width, height, shift.current.x, shift.current.y, width, height)
+    } else if (camera.view?.enabled) {
+      shift.current = { x: 0, y: 0 }
+      camera.clearViewOffset()
+    }
 
     if (Math.abs(camera.fov - motion.toFov) > 0.03) {
       camera.fov += (motion.toFov - camera.fov) * (1 - Math.exp(-delta * 2.4))

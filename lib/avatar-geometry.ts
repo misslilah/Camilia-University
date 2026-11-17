@@ -9,7 +9,7 @@ import {
 } from "three"
 import type { Character, Sex } from "@/lib/avatar"
 
-export type MaterialKey = "skin" | "hair" | "top" | "bottom" | "shoes" | "sole" | "outer" | "underwear" | "button"
+export type MaterialKey = "skin" | "hair" | "top" | "trim" | "bottom" | "shoes" | "sole" | "outer" | "underwear" | "button"
 export type Part = { geometry: BufferGeometry; material: MaterialKey }
 export type Shape = Pick<Character, "sex" | "build" | "shoulders" | "hips" | "hair" | "top" | "bottom" | "shoes" | "outer" | "underwear">
 
@@ -191,8 +191,9 @@ type Key = [y: number, rx: number, rz: number, cz: number]
 
 const TORSO: Record<Sex, Key[]> = {
   man: [
-    [0.79, 0.03, 0.028, 0],
-    [0.82, 0.112, 0.07, -0.008],
+    [0.765, 0.03, 0.026, 0],
+    [0.79, 0.09, 0.058, -0.008],
+    [0.83, 0.13, 0.076, -0.012],
     [0.88, 0.152, 0.09, -0.012],
     [0.94, 0.16, 0.1, -0.01],
     [1.02, 0.147, 0.097, 0],
@@ -207,8 +208,9 @@ const TORSO: Record<Sex, Key[]> = {
     [1.52, 0.046, 0.046, -0.005],
   ],
   woman: [
-    [0.78, 0.03, 0.028, 0],
-    [0.81, 0.12, 0.072, -0.012],
+    [0.755, 0.03, 0.026, 0],
+    [0.78, 0.095, 0.06, -0.012],
+    [0.82, 0.14, 0.08, -0.016],
     [0.87, 0.168, 0.098, -0.018],
     [0.93, 0.175, 0.108, -0.014],
     [1.0, 0.145, 0.096, -0.004],
@@ -226,7 +228,7 @@ const TORSO: Record<Sex, Key[]> = {
 
 const LAYOUT = {
   man: {
-    bottom: 0.79,
+    bottom: 0.765,
     neck: 1.505,
     neckR: 0.05,
     waist: 1.03,
@@ -239,8 +241,6 @@ const LAYOUT = {
     wristY: 0.87,
     head: new Vector3(0, 1.672, 0.008),
     headR: new Vector3(0.086, 0.11, 0.1),
-    jaw: new Vector3(0, 1.605, 0.022),
-    jawR: new Vector3(0.066, 0.058, 0.078),
     leg: [
       [0, 0.086],
       [0.12, 0.079],
@@ -264,7 +264,7 @@ const LAYOUT = {
     foot: 1,
   },
   woman: {
-    bottom: 0.78,
+    bottom: 0.755,
     neck: 1.465,
     neckR: 0.043,
     waist: 1.02,
@@ -277,8 +277,6 @@ const LAYOUT = {
     wristY: 0.86,
     head: new Vector3(0, 1.648, 0.008),
     headR: new Vector3(0.082, 0.106, 0.096),
-    jaw: new Vector3(0, 1.585, 0.02),
-    jawR: new Vector3(0.06, 0.054, 0.074),
     leg: [
       [0, 0.092],
       [0.12, 0.083],
@@ -419,9 +417,16 @@ function torsoShell(m: Model, y0: number, y1: number, off: number, opts: { rings
   return tube(frames, 40, { arc: opts.arc, capStart: opts.capStart, capEnd: opts.capEnd, displace: m.displace })
 }
 
-function footShell(m: Model, side: number, off: number, flat = 0) {
+function footShell(m: Model, side: number, off: number, flat = 0, low = 1) {
   const frames: Frame[] = []
-  for (let i = 0; i < 18; i += 1) frames.push(m.feet[side](i / 17, off, flat))
+  for (let i = 0; i < 18; i += 1) {
+    const frame = m.feet[side](i / 17, off, flat)
+    if (low !== 1 && !flat) {
+      frame.z.multiplyScalar(low)
+      frame.c.y -= (1 - low) * 0.02
+    }
+    frames.push(frame)
+  }
   return tube(frames, 22, {
     capStart: true,
     capEnd: true,
@@ -429,6 +434,49 @@ function footShell(m: Model, side: number, off: number, flat = 0) {
       if (off > 0) p.y = Math.max(p.y, 0.022)
     },
   })
+}
+
+// Egg-shaped head: the crown follows the ellipsoid the hair caps are fitted
+// to, and the lower half narrows into a chin.
+function headGeometry(center: Vector3, r: Vector3) {
+  const k = r.x / 0.086
+  const lower: [number, number, number, number][] = [
+    [-0.108, 0.018, 0.02, 0.026],
+    [-0.097, 0.038, 0.046, 0.024],
+    [-0.075, 0.056, 0.068, 0.018],
+    [-0.045, 0.071, 0.085, 0.01],
+    [-0.018, 0.082, 0.096, 0.004],
+    [0, 0.086, 0.1, 0],
+  ]
+  const rx = curve(lower.map((q) => [q[0], q[1]]))
+  const rz = curve(lower.map((q) => [q[0], q[2]]))
+  const cz = curve(lower.map((q) => [q[0], q[3]]))
+  const frames: Frame[] = []
+  const bottom = -0.108 * k
+  const rings = 34
+  for (let i = 0; i < rings; i += 1) {
+    const t = i / (rings - 1)
+    const dy = t < 0.5 ? bottom * (1 - t * 2) : r.y * 0.985 * Math.sin(((t - 0.5) * 2 * Math.PI) / 2)
+    let x: number
+    let z: number
+    let shift: number
+    if (dy < 0) {
+      x = rx(dy / k) * k
+      z = rz(dy / k) * k * (r.z / r.x / (0.1 / 0.086))
+      shift = cz(dy / k) * k
+    } else {
+      const e = Math.sqrt(Math.max(0, 1 - (dy / r.y) ** 2))
+      x = r.x * e
+      z = r.z * e
+      shift = 0
+    }
+    frames.push({
+      c: new Vector3(center.x, center.y + dy, center.z + shift),
+      x: new Vector3(x, 0, 0),
+      z: new Vector3(0, 0, z),
+    })
+  }
+  return tube(frames, 36, { capStart: true, capEnd: true })
 }
 
 function body(m: Model, parts: Part[]) {
@@ -453,11 +501,10 @@ function body(m: Model, parts: Part[]) {
   const neckR = L.neckR * (0.85 + 0.15 * m.w)
   const neck = limb([new Vector3(0, L.neck - 0.06, -0.012), new Vector3(0, L.neck + 0.12, 0.0)], () => neckR, FRONT)
   parts.push({ geometry: tube(sample(neck, 0, 1, 0, 8), 24), material: "skin" })
-  parts.push({ geometry: ellipsoid(L.head, L.headR), material: "skin" })
-  parts.push({ geometry: ellipsoid(L.jaw, L.jawR), material: "skin" })
+  parts.push({ geometry: headGeometry(L.head, L.headR), material: "skin" })
   parts.push({
-    geometry: ellipsoid(L.head.clone().add(new Vector3(0, -0.022, L.headR.z * 0.93)), new Vector3(0.01, 0.022, 0.016), {
-      dir: new Vector3(0, -1, 0.35),
+    geometry: ellipsoid(L.head.clone().add(new Vector3(0, -0.026, L.headR.z * 0.9)), new Vector3(0.0105, 0.022, 0.017), {
+      dir: new Vector3(0, -1, 0.25),
     }),
     material: "skin",
   })
@@ -502,19 +549,23 @@ function hair(m: Model, c: Shape, parts: Part[]) {
       add(cap(1.035, 1.72, -0.5))
       break
     case "short":
-      add(cap(1.07, 1.74, -0.52))
-      add(cap(1.1, 1.05, -0.12, 0.006))
+      add(
+        ellipsoid(head.clone().add(new Vector3(0, 0.008, -0.006)), headR.clone().multiply(new Vector3(1.07, 1.1, 1.08)), {
+          theta: 1.74,
+          tilt: -0.5,
+        }),
+      )
       break
     case "medium":
-      add(cap(1.12, 1.86, -0.42, 0.004))
+      add(cap(1.12, 1.76, -0.56, 0.004))
       add(curtain(head.y + 0.02, head.y - 0.075, 1.1, 1.16, 1.05, 1.2))
       break
     case "bob":
-      add(cap(1.1, 1.8, -0.42, 0.004))
+      add(cap(1.1, 1.74, -0.56, 0.004))
       add(curtain(head.y + 0.03, head.y - 0.105, 1.1, 1.22, 0.92, 1.0))
       break
     case "long":
-      add(cap(1.09, 1.8, -0.42, 0.004))
+      add(cap(1.09, 1.74, -0.56, 0.004))
       add(curtain(head.y + 0.03, head.y - 0.31, 1.09, 1.42, 0.95, 1.12, 0.02))
       break
     case "bun":
@@ -550,10 +601,10 @@ function sleeve(m: Model, side: number, t1: number, off: number, flare = 0) {
 
 function shoulderCap(m: Model, side: number, off: number) {
   const shoulder = m.armPoints[side][0]
-  const r = 0.047 * m.limbW * (m.sex === "woman" ? 0.88 : 1)
+  const r = 0.046 * m.limbW * (m.sex === "woman" ? 0.88 : 1)
   return ellipsoid(
-    shoulder.clone().add(new Vector3(-Math.sign(shoulder.x) * 0.012, -0.008, -0.004)),
-    new Vector3(r * 1.05 + off, r + off, r * 1.08 + off),
+    shoulder.clone().add(new Vector3(-Math.sign(shoulder.x) * 0.02, -0.014, -0.006)),
+    new Vector3(r * 1.12 + off, r * 0.95 + off, r * 1.1 + off),
   )
 }
 
@@ -603,7 +654,7 @@ function top(m: Model, c: Shape, parts: Part[]) {
         z: new Vector3(0, 0, r * 0.98),
       })
     }
-    add(tube(collar, 32, { arc: () => [0.42, TAU - 0.42] }))
+    add(tube(collar, 32, { arc: () => [0.42, TAU - 0.42] }), "trim")
     for (let y = 1.0; y < neckTop - 0.06; y += 0.085) {
       add(ellipsoid(m.torsoPoint(y, 0, off + 0.004), new Vector3(0.0065, 0.0065, 0.003)), "button")
     }
@@ -667,8 +718,11 @@ function shoes(m: Model, c: Shape, parts: Part[]) {
   const boots = c.shoes === "boots"
   const loafers = c.shoes === "loafers"
   for (let side = 0; side < 2; side += 1) {
-    parts.push({ geometry: footShell(m, side, loafers ? 0.008 : 0.012), material: "shoes" })
-    parts.push({ geometry: footShell(m, side, loafers ? 0.011 : 0.017, 1), material: "sole" })
+    parts.push({ geometry: footShell(m, side, loafers ? 0.007 : 0.012, 0, loafers ? 0.86 : 1), material: "shoes" })
+    parts.push({
+      geometry: loafers ? footShell(m, side, 0.009, 1).scale(1, 0.55, 1) : footShell(m, side, 0.017, 1),
+      material: "sole",
+    })
     if (boots) {
       parts.push({ geometry: tube(sample(m.legs[side], 0.8, 1, 0.014, 10), 22), material: "shoes" })
     }
@@ -735,11 +789,10 @@ function outer(m: Model, c: Shape, parts: Part[]) {
 function underwear(m: Model, parts: Part[]) {
   const L = m.L
   const add = (geometry: BufferGeometry) => parts.push({ geometry, material: "underwear" })
-  const top = m.sex === "woman" ? 0.93 : 0.95
-  add(torsoShell(m, L.bottom, top, 0.005, { capStart: true }))
-  add(torsoShell(m, top - 0.022, top + 0.002, 0.008, { rings: 4 }))
-  const t1 = m.sex === "woman" ? 0.05 : 0.15
-  for (const leg of m.legs) add(tube(sample(leg, 0, t1, 0.005, 8), 26))
+  const top = m.sex === "woman" ? 0.96 : 0.96
+  add(torsoShell(m, L.bottom, top, 0.006, { capStart: true }))
+  const t1 = m.sex === "woman" ? 0.11 : 0.17
+  for (const leg of m.legs) add(tube(sample(leg, 0, t1, 0.006, 8), 26))
   if (m.sex === "woman") {
     add(torsoShell(m, 1.16, 1.305, 0.005, { rings: 18 }))
     for (const side of [-1, 1]) {
