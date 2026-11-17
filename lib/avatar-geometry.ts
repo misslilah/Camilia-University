@@ -633,7 +633,7 @@ function top(m: Model, c: Shape, parts: Part[]) {
   const knit = c.top === "knit"
   const shirt = c.top === "shirt"
   const off = knit ? 0.022 : shirt ? 0.017 : 0.016
-  const hem = shirt ? 0.88 : knit ? 0.91 : 0.92
+  const hem = shirt ? 0.83 : knit ? 0.91 : 0.92
   add(torsoShell(m, hem, neckTop, off))
   const t1 = c.top === "tee" ? 0.36 : 0.95
   for (let side = 0; side < 2; side += 1) {
@@ -744,7 +744,7 @@ function outer(m: Model, c: Shape, parts: Part[]) {
   const neckTop = L.neck + 0.006
   const neckR = L.neckR * (0.85 + 0.15 * m.w)
   const off = c.outer === "coat" ? 0.046 : c.outer === "jacket" ? 0.04 : 0.034
-  const hem = c.outer === "cardigan" ? 0.87 : c.outer === "jacket" ? 0.85 : 0.92
+  const hem = c.outer === "cardigan" ? 0.87 : c.outer === "jacket" ? 0.86 : 0.92
   const gap = (y: number) =>
     c.outer === "cardigan" ? 0.16 + 0.42 * smoothstep(1.08, 1.42, y) : 0.22 + 0.32 * smoothstep(1.18, 1.44, y)
   const rings = 40
