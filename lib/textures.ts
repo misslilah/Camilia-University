@@ -25,6 +25,51 @@ export type HallTextures = {
   woodFloor: Texture
   board: Texture
   stone: Texture
+  walnut: Texture
+}
+
+function walnutTexture() {
+  const size = 512
+  const texture = largeTexture(size, size, (ctx) => {
+    ctx.fillStyle = "#5a3520"
+    ctx.fillRect(0, 0, size, size)
+    // Every wobble uses whole periods over the height so the texture tiles vertically.
+    const wobble = (y: number, phase: number, amp: number) =>
+      Math.sin((y / size) * Math.PI * 2 + phase) * amp + Math.sin((y / size) * Math.PI * 6 + phase * 2) * amp * 0.35
+    for (let i = 0; i < 26; i += 1) {
+      const x = Math.random() * size
+      const width = 6 + Math.random() * 34
+      const light = i % 2 === 0
+      ctx.fillStyle = light ? `rgba(122, 78, 46, ${0.05 + Math.random() * 0.07})` : `rgba(22, 11, 5, ${0.06 + Math.random() * 0.08})`
+      const phase = Math.random() * Math.PI * 2
+      for (const shift of [-size, 0, size]) {
+        ctx.beginPath()
+        for (let y = 0; y <= size; y += 8) ctx.lineTo(x + shift + wobble(y, phase, 6), y)
+        for (let y = size; y >= 0; y -= 8) ctx.lineTo(x + shift + width + wobble(y, phase + 0.4, 6), y)
+        ctx.fill()
+      }
+    }
+    for (let i = 0; i < 260; i += 1) {
+      const x = Math.random() * size
+      const phase = Math.random() * Math.PI * 2
+      const amp = 1.5 + Math.random() * 4
+      const dark = Math.random() > 0.3
+      ctx.strokeStyle = dark ? `rgba(18, 9, 4, ${0.12 + Math.random() * 0.26})` : `rgba(140, 92, 56, ${0.05 + Math.random() * 0.08})`
+      ctx.lineWidth = 0.5 + Math.random() * 1.1
+      for (const shift of [-size, 0, size]) {
+        ctx.beginPath()
+        for (let y = 0; y <= size; y += 8) ctx.lineTo(x + shift + wobble(y, phase, amp), y)
+        ctx.stroke()
+      }
+    }
+    for (let i = 0; i < 3200; i += 1) {
+      ctx.fillStyle = `rgba(14, 7, 3, ${0.12 + Math.random() * 0.2})`
+      ctx.fillRect(Math.random() * size, Math.random() * size, 1, 2 + Math.random() * 4)
+    }
+  })
+  texture.wrapS = RepeatWrapping
+  texture.wrapT = RepeatWrapping
+  return texture
 }
 
 let cache: HallTextures | null = null
@@ -106,6 +151,7 @@ export function getTextures(): HallTextures {
         }
       }
     }, 3, 4),
+    walnut: walnutTexture(),
   }
   return cache
 }

@@ -134,20 +134,6 @@ function BackWall() {
         <boxGeometry args={[DOOR_HALF * 2, upperHeight, 0.24]} />
         <meshStandardMaterial map={textures.plaster} roughness={0.94} />
       </mesh>
-      {[-1, 1].map((side) => (
-        <mesh
-          key={`jamb-${side}`}
-          position={[side * (DOOR_HALF + 0.07), SILL_Y + DOOR_HEIGHT / 2, BACK_Z + 0.08]}
-          castShadow
-        >
-          <boxGeometry args={[0.14, DOOR_HEIGHT + 0.08, 0.12]} />
-          <meshStandardMaterial color="#3f2a18" roughness={0.68} />
-        </mesh>
-      ))}
-      <mesh position={[0, SILL_Y + DOOR_HEIGHT + 0.07, BACK_Z + 0.08]} castShadow>
-        <boxGeometry args={[DOOR_HALF * 2 + 0.28, 0.14, 0.12]} />
-        <meshStandardMaterial color="#3f2a18" roughness={0.68} />
-      </mesh>
     </group>
   )
 }
