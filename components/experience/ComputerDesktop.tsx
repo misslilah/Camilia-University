@@ -440,10 +440,11 @@ function AppWindow({
         onFocus()
       }}
       className={cn(
-        "absolute flex flex-col overflow-hidden border bg-[#f7f5f0] text-[#1d2433] shadow-[0_24px_60px_rgba(0,0,0,0.45)]",
+        "absolute flex flex-col overflow-hidden border text-[#1d2433] shadow-[0_24px_60px_rgba(0,0,0,0.45)]",
+        patreon ? "bg-[#ee4f96]" : "bg-[#f7f5f0]",
         maximized ? "rounded-none border-transparent" : "rounded-xl",
         !maximized &&
-          (focused ? (patreon ? "border-[#e7a0ab]" : "border-white/60") : patreon ? "border-[#e7a0ab]/50 opacity-95" : "border-white/25 opacity-95"),
+          (focused ? (patreon ? "border-[#ffc2dc]" : "border-white/60") : patreon ? "border-[#ffc2dc]/70 opacity-95" : "border-white/25 opacity-95"),
       )}
       style={
         maximized
@@ -457,8 +458,8 @@ function AppWindow({
           !maximized && "cursor-grab active:cursor-grabbing",
           patreon
             ? focused
-              ? "bg-[#c7435c] text-white"
-              : "bg-[#a34b5c] text-white/90"
+              ? "bg-[#c72d6e] text-white"
+              : "bg-[#b02562] text-white/90"
             : focused
               ? "bg-[#1d2a4a] text-white"
               : "bg-[#3a4560] text-white/80",
@@ -562,7 +563,7 @@ function AppWindow({
             stretch.current = null
           }}
         >
-          <svg viewBox="0 0 16 16" className={cn("h-4 w-4", patreon ? "text-[#c7435c]/80" : "text-black/35")}>
+          <svg viewBox="0 0 16 16" className={cn("h-4 w-4", patreon ? "text-[#c72d6e]/80" : "text-black/35")}>
             <path d="M14 6 L6 14 M14 10 L10 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
           </svg>
         </div>
