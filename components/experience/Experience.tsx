@@ -117,14 +117,14 @@ export default function Experience() {
   const leaveHall = useCallback(() => {
     if (phase !== "inside") return
     setHovered(null)
-    sound.leaveHall(reduced)
+    sound.leaveHall()
     go("leaving")
-  }, [go, phase, reduced])
+  }, [go, phase])
 
   const hallLeft = useCallback(() => {
-    sound.hallDoorsClose(reduced)
+    sound.hallReturn()
     go("arrival")
-  }, [go, reduced])
+  }, [go])
 
   const roomLeft = useCallback(() => {
     sound.hallReturn()

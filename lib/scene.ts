@@ -79,18 +79,8 @@ export const ROOM_VIEW = {
   fov: 60,
 }
 
-// Just past the double doors, facing back out along the hallway.
-export const HALL_EXIT = {
-  position: [0, SILL_Y + 1.58, BACK_Z + 2.4] as Vec3,
-  look: [0, SILL_Y + 1.3, BACK_Z + 9] as Vec3,
-}
-
 export function leaveDuration(reduced: boolean) {
-  return reduced ? 0.5 : 2.8
-}
-
-export function closeDuration(reduced: boolean) {
-  return reduced ? 0.3 : 1.6
+  return reduced ? 0.3 : 0.75
 }
 
 export function toRoomDuration(reduced: boolean) {
