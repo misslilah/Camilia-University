@@ -6,9 +6,9 @@ The Camilia University reception. Push open the doors of a lecture hall, choose 
 
 1. Open the doors, or enter directly.
 2. Click a chair. The arrow keys move the selection, and Enter confirms it.
-3. Once seated, click a title on the board. Key 1 opens the chapter. Escape steps back, then stands you up. Standing in the hall, Back to the hallway (or Escape) fades to black and returns you outside the doors.
+3. Once seated, click a title on the board. Keys 1 to 4 open the chapters. Escape steps back, then stands you up. Standing in the hall, Back to the hallway (or Escape) fades to black and returns you outside the doors.
 
-The chapter: courses.
+The chapters: courses, examinations, academic records, and study materials.
 
 Right of the double doors, a smaller door leads to a bedroom with blue walls: a bed under the window, a desk with a working computer, a wardrobe and a standing mirror. Open it by clicking the door or the Bedroom link. Move the mouse (or drag on a phone, or use the arrow keys) to look around, and press Escape or Back to the hallway to leave.
 
