@@ -23,6 +23,6 @@ export function createChairGeometry() {
   ]
   const merged = mergeGeometries(parts, false)
   parts.forEach((part) => part.dispose())
-  if (!merged) throw new Error("La chaise n'a pas pu être construite")
+  if (!merged) throw new Error("The chair could not be built")
   return merged
 }

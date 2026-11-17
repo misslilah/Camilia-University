@@ -30,7 +30,7 @@ export function Hud({
     phase === "inside"
       ? hovered
         ? seatLabel(hovered)
-        : "Choisissez une chaise"
+        : "Choose a chair"
       : null
 
   return (
@@ -45,7 +45,7 @@ export function Hud({
           phase === "arrival" ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >
-        <p className="text-[11px] tracking-[0.48em] text-[#f3ead7]/75">UNIVERSITÉ</p>
+        <p className="text-[11px] tracking-[0.48em] text-[#f3ead7]/75">UNIVERSITY</p>
         <h1 className="mt-3 font-serif text-5xl leading-none font-medium tracking-tight sm:text-7xl">
           Camilia
         </h1>
@@ -61,7 +61,7 @@ export function Hud({
         )}
       >
         <p className="max-w-sm text-sm text-[#f6f0e6]/80">
-          Poussez les portes, entrez dans l’amphithéâtre, puis asseyez-vous.
+          Push the doors, enter the hall, then take a seat.
         </p>
         <div className="pointer-events-auto flex flex-col items-center gap-3">
           <Button
@@ -69,10 +69,10 @@ export function Hud({
             className="h-12 rounded-full bg-[#f3ead7] px-8 text-[15px] tracking-wide text-[#2a1c14] shadow-[0_12px_40px_rgba(0,0,0,0.35)] hover:bg-[#fff8ee]"
             onClick={onOpen}
           >
-            Ouvrir les portes
+            Open the doors
           </Button>
           <Button variant="ghost" className="text-[#f3ead7]/75 hover:bg-white/10 hover:text-[#f6f0e6]" onClick={onSkip}>
-            Entrer directement
+            Enter directly
           </Button>
         </div>
       </div>
@@ -93,7 +93,7 @@ export function Hud({
             {hint}
             {phase === "inside" && !hovered && (
               <span className="mt-0.5 block text-center text-[11px] text-[#f3ead7]/60">
-                Cliquez une place, ou utilisez les flèches
+                Click a seat, or use the arrow keys
               </span>
             )}
           </div>
@@ -107,7 +107,7 @@ export function Hud({
             className="pointer-events-auto rounded-full border-[#f3ead7]/30 bg-[#1a120e]/55 text-[#f6f0e6] backdrop-blur-md hover:bg-[#f3ead7] hover:text-[#2a1c14]"
             onClick={onStand}
           >
-            Se lever
+            Stand up
           </Button>
           <p className="rounded-full bg-[#1a120e]/45 px-3 py-2 text-xs tracking-wide backdrop-blur-md">
             {seat?.label}
@@ -119,7 +119,7 @@ export function Hud({
         {phase === "sitting" &&
           (chapter ? (
             <button type="button" onClick={onBack}>
-              Retour au tableau
+              Back to the board
             </button>
           ) : (
             CHAPTERS.map((item, index) => (
@@ -130,13 +130,13 @@ export function Hud({
           ))}
       </div>
       <p className="sr-only" aria-live="polite">
-        {phase === "arrival" && "Vous êtes devant les portes de Camilia University."}
-        {phase === "opening" && "Les portes s’ouvrent."}
-        {phase === "inside" && "Choisissez une chaise dans l’amphithéâtre."}
+        {phase === "arrival" && "You are at the doors of Camilia University."}
+        {phase === "opening" && "The doors are opening."}
+        {phase === "inside" && "Choose a chair in the hall."}
         {phase === "sitting" &&
           (chapter
             ? `${chapter.title}. ${chapter.body}`
-            : `${seat?.label ?? "Vous êtes assis"}. Le menu est au tableau.`)}
+            : `${seat?.label ?? "You are seated"}. The menu is on the board.`)}
       </p>
     </div>
   )
@@ -145,5 +145,5 @@ export function Hud({
 function seatLabel(id: string) {
   const row = id.slice(0, 1)
   const n = id.slice(1)
-  return `Rangée ${row} · place ${n}`
+  return `Row ${row} · seat ${n}`
 }

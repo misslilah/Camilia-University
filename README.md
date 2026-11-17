@@ -1,23 +1,23 @@
 # Camilia University
 
-Accueil de Camilia University. On pousse les portes d’un amphithéâtre, on choisit une chaise, et le menu s’écrit au tableau.
+The Camilia University reception. Push open the doors of a lecture hall, choose a chair, and the menu is written on the board.
 
-## Utiliser la salle
+## Using the hall
 
-1. Ouvrez les portes, ou entrez directement.
-2. Cliquez une chaise. Les flèches du clavier déplacent aussi la sélection, Entrée confirme.
-3. Une fois assis, cliquez un intitulé sur le tableau. Les touches 1 à 6 ouvrent les chapitres, Échap revient en arrière puis vous fait vous lever.
+1. Open the doors, or enter directly.
+2. Click a chair. The arrow keys move the selection, and Enter confirms it.
+3. Once seated, click a title on the board. Keys 1 to 6 open the chapters. Escape steps back, then stands you up.
 
-Les chapitres : les cours, le campus, les admissions, la recherche, la vie étudiante, le secrétariat.
+The chapters: courses, campus, admissions, research, student life, and the office.
 
-## Lancer en local
+## Run locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Le site est servi sur le port 3847.
+The site is served on port 3847.
 
 ```bash
 npm run build

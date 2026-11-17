@@ -9,12 +9,11 @@ export function FlatCampus() {
   return (
     <div className="h-full overflow-y-auto bg-[#f3ead7] text-[#2a1c14]">
       <main className="mx-auto flex min-h-full max-w-3xl flex-col px-6 py-12 sm:px-10">
-        <p className="text-[11px] tracking-[0.42em] text-[#6b4a32]">UNIVERSITÉ</p>
+        <p className="text-[11px] tracking-[0.42em] text-[#6b4a32]">UNIVERSITY</p>
         <h1 className="mt-3 font-serif text-5xl sm:text-7xl">Camilia</h1>
         <p className="mt-2 font-serif text-2xl text-[#6b4a32]">University</p>
         <p className="mt-6 max-w-xl text-base leading-7 text-[#4a3428]">
-          L’amphithéâtre ne peut pas s’afficher dans ce navigateur. Le tableau est donc ouvert ici :
-          choisissez un chapitre.
+          This browser cannot show the hall. The board is open here instead: choose a chapter.
         </p>
         <div className="mt-10 flex flex-col gap-3">
           {CHAPTERS.map((chapter) => {

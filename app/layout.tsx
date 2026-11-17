@@ -23,13 +23,12 @@ const sans = localFont({
 
 export const metadata: Metadata = {
   title: "Camilia University",
-  description:
-    "Poussez les portes de l’amphithéâtre, choisissez une chaise, et lisez le menu au tableau.",
+  description: "Push the doors of the hall, choose a chair, and read the menu on the board.",
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="fr" className={`${serif.variable} ${sans.variable} h-full antialiased`}>
+    <html lang="en" className={`${serif.variable} ${sans.variable} h-full antialiased`}>
       <body className="h-full overflow-hidden bg-[#140f0c] text-[#f6f0e6]">{children}</body>
     </html>
   )

@@ -42,15 +42,15 @@ export function Signage() {
       <Text
         font={SERIF_FONT}
         position={[0, SILL_TEXT_Y, 8.46]}
-        fontSize={0.22}
+        fontSize={0.16}
         color="#3a2718"
         anchorX="center"
         anchorY="middle"
-        letterSpacing={0.22}
-        maxWidth={2.2}
+        letterSpacing={0.06}
+        maxWidth={2.35}
         textAlign="center"
       >
-        {"CAMILIA\nAMPHITHÉÂTRE"}
+        {"CAMILIA\nAMPHITHEATER"}
       </Text>
     </group>
   )
@@ -108,7 +108,7 @@ function Welcome({ opacity }: { opacity: number }) {
         fillOpacity={opacity * 0.85}
         anchorX="center"
       >
-        Amphithéâtre I
+        Amphitheater I
       </Text>
       <Text
         font={CHALK_FONT}
@@ -121,7 +121,7 @@ function Welcome({ opacity }: { opacity: number }) {
         anchorX="center"
         lineHeight={1.25}
       >
-        {"Asseyez-vous.\nLe menu s’écrira ici."}
+        {"Take a seat.\nThe menu will be written here."}
       </Text>
     </group>
   )
@@ -147,24 +147,24 @@ function Menu({
         anchorX="center"
         letterSpacing={0.14}
       >
-        AMPHITHÉÂTRE I
+        AMPHITHEATER I
       </Text>
       <Text
         font={CHALK_FONT}
         position={[0, 0.86, 0]}
-        fontSize={0.32}
+        fontSize={0.26}
         color="#f6f1e6"
         fillOpacity={opacity}
         anchorX="center"
       >
-        Que voulez-vous ouvrir ?
+        What would you like to open?
       </Text>
       {CHAPTERS.map((chapter, index) => (
         <ChalkLine
           key={chapter.id}
           text={`${chapter.numeral}    ${chapter.title}`}
           position={[-1.15, 0.46 - index * 0.32, 0]}
-          width={2.5}
+          width={3.3}
           fontSize={0.28}
           opacity={opacity}
           enabled={enabled}
@@ -187,7 +187,7 @@ function ChapterPage({
   return (
     <group>
       <ChalkLine
-        text="←   Retour au tableau"
+        text="←   Back to the board"
         position={[-2.15, 1.12, 0]}
         width={2.4}
         fontSize={0.22}
