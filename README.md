@@ -14,12 +14,14 @@ Right of the double doors, a smaller door leads to a bedroom with blue walls: a 
 
 ### The wardrobe and the mirror
 
-In the bedroom, click (or tap) the wardrobe. Its doors swing open and you step in front of a standing mirror, where your character appears. The first time, choose a base body: a slim man or a slim woman. Each starts in a plain, casual outfit (grey T-shirt, dark straight jeans and white sneakers for him; white T-shirt, straight jeans and white sneakers for her).
+In the bedroom, click (or tap) the wardrobe. Its doors swing open and you step in front of a standing mirror, where your character appears, with a simple stylised face that blinks now and then.
 
-The wardrobe panel (on the right, or at the bottom on a phone) has two tabs:
+The first time, you create your character: choose Men or Women, then set the height, skin tone, hairstyle and hair colour. The character wears a plain base outfit (grey T-shirt, dark straight jeans and white sneakers for Men; white T-shirt, straight jeans and white sneakers for Women). Create character saves it.
 
-- Body: switch between the two base bodies, adjust height, build, shoulders and hips, and pick a skin tone, a hairstyle and a hair colour.
+After that, the wardrobe panel (on the right, or at the bottom on a phone) opens on two tabs:
+
 - Clothes: a top, a bottom, shoes and outerwear, each with several cuts and colours. Underwear only shows the base body: a smooth, mannequin-like figure in plain underwear (briefs, plus a simple bra for the woman), with no anatomical detail.
+- Edit character: the same body, height, skin tone and hair settings as during creation.
 
 Every change shows in the mirror straight away. Drag on the scene, use the turn buttons, or press the arrow keys to turn the character. Reset to base outfit restores the starting clothes. Done, Back to the room, or Escape closes the wardrobe. The character is saved in this browser.
 
