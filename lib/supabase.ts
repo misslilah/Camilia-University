@@ -62,9 +62,7 @@ export async function signUp(email: string, password: string, name: string) {
     return { error: "The academy could not open that record." }
   }
   const session = readSession(payload, email)
-  if (!session) {
-    return { error: "Confirm your email, then sign in. In Supabase, turn off Confirm email under Authentication to enroll immediately." }
-  }
+  if (!session) return { confirm: true as const }
   return { session }
 }
 

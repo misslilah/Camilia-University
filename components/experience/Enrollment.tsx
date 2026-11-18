@@ -19,11 +19,13 @@ export function Enrollment({
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
   const [pending, setPending] = useState(false)
 
   async function submit(event: FormEvent) {
     event.preventDefault()
     setError("")
+    setNotice("")
     if (!configured) {
       const student = { name: name.trim(), email: email.trim().toLowerCase() }
       if (student.name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(student.email) || password.length < 8) {
@@ -45,7 +47,11 @@ export function Enrollment({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password }),
       })
-      const body = (await response.json().catch(() => ({}))) as { error?: string; student?: Student }
+      const body = (await response.json().catch(() => ({}))) as { error?: string; student?: Student; confirm?: string }
+      if (body.confirm) {
+        setNotice(body.confirm)
+        return
+      }
       if (!response.ok || !body.student) {
         setError(body.error || "The academy could not open that record.")
         return
@@ -106,6 +112,7 @@ export function Enrollment({
             />
           </label>
         </div>
+        {notice && <p className="mt-3 text-sm text-[#f6f0e6]">{notice}</p>}
         {error && <p className="mt-3 text-sm text-[#f0b4a4]">{error}</p>}
         {!configured && (
           <p className="mt-3 text-xs text-[#f6f0e6]/60">
@@ -122,6 +129,7 @@ export function Enrollment({
             onClick={() => {
               setMode(mode === "enroll" ? "signin" : "enroll")
               setError("")
+              setNotice("")
             }}
           >
             {mode === "enroll" ? "Already enrolled? Sign in" : "New here? Enroll"}

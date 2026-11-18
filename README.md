@@ -21,7 +21,7 @@ The first time, you create your character: choose Men or Women, then set the hei
 
 After that, the wardrobe panel (on the right, or at the bottom on a phone) is for getting dressed. Pick one item per category by clicking it: Underwear (always worn: boxer briefs for Men, a briefs and bralette set for Women, in a few plain colours), Tops, Pants and Shoes. Tops, Pants and Shoes also have None, so the character can stand in underwear. Items are fixed and not customisable. A new character starts in a grey T-shirt, dark jeans and white sneakers (Men) or a white T-shirt, blue jeans and white sneakers (Women). Bodies are smooth, mannequin-like figures with no anatomical detail.
 
-Every change shows in the mirror straight away. Drag on the scene, use the turn buttons, or press the arrow keys to turn the character. Done, Back to the room, or Escape closes the wardrobe. The character and outfit are saved in this browser, and on the student record when Supabase is connected. Create those three values in the Supabase project settings: the project URL, the anon key, and the service role key. In Authentication, turn off Confirm email if students should enter as soon as they enroll.
+Every change shows in the mirror straight away. Drag on the scene, use the turn buttons, or press the arrow keys to turn the character. Done, Back to the room, or Escape closes the wardrobe. The character and outfit are saved in this browser, and on the student record when Supabase is connected. Create those three values in the Supabase project settings: the project URL, the anon key, and the service role key. After enrolling, the student confirms the account from the link in the email, then signs in.
 
 ### The computer
 

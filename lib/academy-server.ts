@@ -115,6 +115,11 @@ export async function academySignUp(request: NextRequest) {
   }
   const result = await signUp(email, password, name)
   if ("error" in result && result.error) return NextResponse.json({ error: result.error }, { status: supabaseConfig() ? 400 : 503 })
+  if ("confirm" in result && result.confirm) {
+    return NextResponse.json({
+      confirm: "Thank you. Please confirm your account by clicking the link in your email.",
+    })
+  }
   if (!("session" in result) || !result.session) return NextResponse.json({ error: "The academy could not open that record." }, { status: 400 })
   return withSession(request, { ...result.session, name })
 }
