@@ -33,10 +33,13 @@ Patreon is the creator's library. Its icon is an original coral rounded tile wit
 
 An upload is limited to 24 MB. The admin assigns a tier, using the campaign's tier titles when Patreon returns them, or by typing the title so it matches Patreon exactly. An optional amount in cents records the order: an active patron can play a file when that tier is one of their currently entitled tiers on this campaign, or when their tier amount is at least the file's amount. A file outside the tier is listed as locked and is not streamed. With no active membership the window stays open, with a short explanation, and paid files stay hidden. The creator's files are stored in Supabase Storage when `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are set, and the catalogue stays in the app's Postgres database. Without Supabase, the file itself is stored in Postgres. Every subscriber sees the same library.
 
-Until `PATREON_CLIENT_ID`, `PATREON_CLIENT_SECRET`, and `PATREON_CAMPAIGN_ID` are set, the connect button explains that Patreon is not configured yet and the library shows labeled sample files. There is no stand-in login. Register both of these redirect URIs on the Patreon client:
+Until `PATREON_CLIENT_ID`, `PATREON_CLIENT_SECRET`, and `PATREON_CAMPAIGN_ID` are set, the connect button explains that Patreon is not configured yet and the library shows labeled sample files. There is no stand-in login. Register these redirect URIs on the Patreon client:
 
 - `http://127.0.0.1:3847/api/patreon/callback`
 - `https://camilia-university.apps.grok.bot/api/patreon/callback`
+- `https://camilia-university-misslilahs-projects.vercel.app/api/patreon/callback`
+
+A later custom domain can be set with `APP_ORIGIN` (for example `https://camilia.example`). Register that same origin plus `/api/patreon/callback` on the Patreon client.
 
 The three values are read from the server environment only. The host sets `DATABASE_URL` for the published database; it is not one of the Patreon secrets. The window can be resized or maximised, like Browser.
 

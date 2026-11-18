@@ -90,18 +90,41 @@ export function patreonConfig(): Config | null {
   return { clientId, clientSecret, campaignId }
 }
 
-// The published app is reached at this address. The host that actually runs the
-// request is an internal deployment host, which Patreon will not accept.
-const PUBLIC_ORIGIN = "https://camilia-university.apps.grok.bot"
+// Patreon only accepts redirect URIs registered on the client. Preview and
+// internal deployment hosts are ignored; the request must arrive on one of
+// these public addresses, or on the address in APP_ORIGIN.
+const PUBLIC_ORIGINS = [
+  "https://camilia-university.apps.grok.bot",
+  "https://camilia-university-misslilahs-projects.vercel.app",
+]
+
+function allowedOrigins() {
+  const extra = process.env.APP_ORIGIN?.trim().replace(/\/$/, "") ?? ""
+  const list = [...PUBLIC_ORIGINS]
+  if (extra.startsWith("https://") && !list.includes(extra)) list.push(extra)
+  return list
+}
+
+function originForHost(host: string, protocol: string) {
+  if (!HOST_RE.test(host)) return ""
+  if (host.startsWith("127.0.0.1") || host.startsWith("localhost") || host.startsWith("[::1]")) {
+    const proto = protocol === "http:" ? "http" : "https"
+    return `${proto}://${host}`
+  }
+  return allowedOrigins().find((origin) => new URL(origin).host === host) ?? ""
+}
 
 export function requestOrigin(request: Request) {
   const url = new URL(request.url)
-  const host = HOST_RE.test(url.host) ? url.host : ""
-  if (host.startsWith("127.0.0.1") || host.startsWith("localhost") || host.startsWith("[::1]")) {
-    const proto = url.protocol === "http:" ? "http" : "https"
-    return `${proto}://${host}`
+  const forwarded = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ?? ""
+  const hostHeader = request.headers.get("host")?.trim() ?? ""
+  for (const candidate of [forwarded, hostHeader, url.host]) {
+    const origin = originForHost(candidate, url.protocol)
+    if (origin) return origin
   }
-  return PUBLIC_ORIGIN
+  const configured = process.env.APP_ORIGIN?.trim().replace(/\/$/, "") ?? ""
+  if (configured.startsWith("https://")) return configured
+  return PUBLIC_ORIGINS[0]
 }
 
 export function oauthRedirectUri(request: Request) {
