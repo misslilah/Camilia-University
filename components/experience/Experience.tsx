@@ -15,6 +15,7 @@ import { Hud } from "@/components/experience/Hud"
 import { Seating } from "@/components/experience/Seating"
 import { WardrobePanel } from "@/components/experience/WardrobePanel"
 import { baseCharacter, loadCharacter, saveCharacter, type Character, type Sex } from "@/lib/avatar"
+import { properName } from "@/lib/student-name"
 import { setCursor } from "@/lib/cursor"
 import { FADE_ID } from "@/lib/fade"
 import { useScreenRect } from "@/lib/screen-rect"
@@ -27,6 +28,35 @@ import {
   seatById,
   type Phase,
 } from "@/lib/scene"
+
+function storedStudent(): Student | null {
+  try {
+    const local = JSON.parse(window.localStorage.getItem("camilia-student") || "") as Student
+    if (local?.name && local?.email) return local
+  } catch {
+    // No local student record yet.
+  }
+  return null
+}
+
+async function chosenName(student: Student): Promise<Student> {
+  if (properName(student.name, student.email)) return student
+  const recovered = properName(storedStudent()?.name, student.email)
+  if (!recovered) return { ...student, name: "Student" }
+  const response = await fetch("/api/academy/profile", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: recovered }),
+  }).catch(() => null)
+  const body = (await response?.json().catch(() => null)) as { student?: Student } | null
+  const next = body?.student?.name ? body.student : { ...student, name: recovered }
+  try {
+    window.localStorage.setItem("camilia-student", JSON.stringify(next))
+  } catch {
+    // The restored name still shows for this visit.
+  }
+  return next
+}
 
 export default function Experience() {
   const [webgl] = useState(() => {
@@ -144,7 +174,9 @@ export default function Experience() {
         if (cancel) return
         setAcademyReady(Boolean(data.configured))
         if (data.student) {
-          setStudent(data.student)
+          const named = await chosenName(data.student)
+          if (cancel) return
+          setStudent(named)
           const progress = await fetch("/api/academy/progress")
             .then((response) => response.json())
             .catch(() => null)
@@ -156,12 +188,8 @@ export default function Experience() {
           return
         }
         if (!data.configured) {
-          try {
-            const local = JSON.parse(window.localStorage.getItem("camilia-student") || "") as Student
-            if (local?.name && local?.email) setStudent(local)
-          } catch {
-            // No local student record yet.
-          }
+          const local = storedStudent()
+          if (local) setStudent(local)
         }
       })
       .catch(() => {})
@@ -473,6 +501,22 @@ export default function Experience() {
         onStand={stand}
         onRoom={() => beginEntry("room")}
         student={student}
+        onRename={(name) => {
+          const next = { name, email: student?.email ?? "" }
+          setStudent(next)
+          try {
+            window.localStorage.setItem("camilia-student", JSON.stringify(next))
+          } catch {
+            // The name still stays on the student record.
+          }
+          if (academyReady) {
+            fetch("/api/academy/profile", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name }),
+            }).catch(() => {})
+          }
+        }}
         onSignOut={() => {
           setStudent(null)
           try {

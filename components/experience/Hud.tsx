@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, type FormEvent } from "react"
 import { ArrowLeft, ArrowRight, Volume2, VolumeX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CHAPTERS, type Phase, type Seat } from "@/lib/scene"
@@ -20,6 +21,7 @@ export function Hud({
   onBack,
   student,
   onSignOut,
+  onRename,
   muted,
   onToggleSound,
 }: {
@@ -37,6 +39,7 @@ export function Hud({
   onBack: () => void
   student: { name: string } | null
   onSignOut: () => void
+  onRename: (name: string) => void
   muted: boolean
   onToggleSound: () => void
 }) {
@@ -108,14 +111,7 @@ export function Hud({
               <ArrowRight />
             </Button>
           </div>
-          {student && (
-            <p className="text-xs text-[#f6f0e6]/70">
-              Enrolled as {student.name}
-              <button type="button" className="ml-2 underline underline-offset-2 hover:text-[#f6f0e6]" onClick={onSignOut}>
-                Sign out
-              </button>
-            </p>
-          )}
+          {student && <Enrolled name={student.name} onSignOut={onSignOut} onRename={onRename} />}
         </div>
       </div>
 
@@ -231,6 +227,47 @@ export function Hud({
             : `${seat?.label ?? "You are seated"}. The menu is on the board.`)}
       </p>
     </div>
+  )
+}
+
+function needsName(name: string) {
+  return name.includes("@") || name === "Student"
+}
+
+function Enrolled({ name, onSignOut, onRename }: { name: string; onSignOut: () => void; onRename: (name: string) => void }) {
+  const [draft, setDraft] = useState("")
+  const save = (event: FormEvent) => {
+    event.preventDefault()
+    const next = draft.trim().replace(/\s+/g, " ")
+    if (next.length < 2 || next.includes("@")) return
+    onRename(next)
+  }
+  if (!needsName(name)) {
+    return (
+      <p className="text-xs text-[#f6f0e6]/70">
+        Enrolled as {name}
+        <button type="button" className="ml-2 underline underline-offset-2 hover:text-[#f6f0e6]" onClick={onSignOut}>
+          Sign out
+        </button>
+      </p>
+    )
+  }
+  return (
+    <form onSubmit={save} className="pointer-events-auto flex items-center gap-2">
+      <input
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        placeholder="Your name"
+        aria-label="Your name"
+        className="h-8 w-36 rounded-full bg-[#f3ead7] px-3 text-xs text-[#2a1c14] outline-none"
+      />
+      <button type="submit" className="text-xs text-[#f6f0e6]/80 underline underline-offset-2">
+        Save
+      </button>
+      <button type="button" className="text-xs text-[#f6f0e6]/55 underline underline-offset-2" onClick={onSignOut}>
+        Sign out
+      </button>
+    </form>
   )
 }
 

@@ -1,4 +1,5 @@
 import { MAX_UPLOAD_BYTES } from "@/lib/patreon-access"
+import { properName } from "@/lib/student-name"
 
 // Server-only Supabase client. The service role never reaches the browser.
 // A direct upload receives only a short-lived signature and the anon key.
@@ -13,6 +14,7 @@ export type AuthSession = {
   expiresAt: number
   userId: string
   email: string
+  name: string
 }
 
 function envValue(...names: string[]) {
@@ -36,11 +38,18 @@ function authHeaders(key: string) {
   return { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" }
 }
 
+type AuthUser = { id?: string; email?: string; user_metadata?: { full_name?: unknown } }
+
 type AuthPayload = {
   access_token?: string
   refresh_token?: string
   expires_in?: number
-  user?: { id?: string; email?: string }
+  user?: AuthUser
+}
+
+function nameFromUser(user: AuthUser | null | undefined, email: string) {
+  const raw = typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : ""
+  return properName(raw, email)
 }
 
 function readSession(payload: AuthPayload, email: string): AuthSession | null {
@@ -49,12 +58,14 @@ function readSession(payload: AuthPayload, email: string): AuthSession | null {
   const userId = payload.user?.id ?? ""
   if (!accessToken || !refreshToken || !userId) return null
   const expiresIn = typeof payload.expires_in === "number" ? payload.expires_in : 3600
+  const address = payload.user?.email || email
   return {
     accessToken,
     refreshToken,
     expiresAt: Date.now() + expiresIn * 1000,
     userId,
-    email: payload.user?.email || email,
+    email: address,
+    name: nameFromUser(payload.user, address),
   }
 }
 
@@ -100,9 +111,21 @@ export async function verifyAccess(accessToken: string) {
     headers: { apikey: config.anonKey, Authorization: `Bearer ${accessToken}` },
   })
   if (!response.ok) return null
-  const user = (await response.json().catch(() => null)) as { id?: string; email?: string } | null
+  const user = (await response.json().catch(() => null)) as AuthUser | null
   if (!user?.id) return null
-  return { id: user.id, email: user.email ?? "" }
+  const email = user.email ?? ""
+  return { id: user.id, email, name: nameFromUser(user, email) }
+}
+
+export async function updateProfileName(accessToken: string, name: string) {
+  const config = supabaseConfig()
+  if (!config || !accessToken) return false
+  const response = await fetch(`${config.url}/auth/v1/user`, {
+    method: "PUT",
+    headers: { ...authHeaders(config.anonKey), Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ data: { full_name: name } }),
+  })
+  return response.ok
 }
 
 export async function refreshAuth(refreshToken: string) {

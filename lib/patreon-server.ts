@@ -17,6 +17,7 @@ import { deleteObject, mediaPath, objectSize, signedDownloadUrl, signedUpload, s
 import {
   entitledTo,
   isCampaignCreator,
+  membershipNotice,
   sameId,
   sampleLibrary,
   tierById,
@@ -424,7 +425,7 @@ async function loadCampaign(accessToken: string, campaignId: string) {
   return { creatorId: relOne(data, "creator"), tiers: tiersOf(data, included) }
 }
 
-type CreatorAccess = { owns: boolean; tiers: CampaignTier[] }
+type CreatorAccess = { owns: boolean; tiers: CampaignTier[]; ownedIds: string[] }
 
 async function loadCreatorAccess(accessToken: string, campaignId: string, userId: string): Promise<CreatorAccess | null> {
   const url = new URL("https://www.patreon.com/api/oauth2/v2/campaigns")
@@ -436,24 +437,28 @@ async function loadCreatorAccess(accessToken: string, campaignId: string, userId
     console.error("patreon campaigns failed", response.status)
     const single = await loadCampaign(accessToken, campaignId).catch(() => null)
     if (!single?.creatorId) return null
-    return { owns: sameId(single.creatorId, userId), tiers: single.tiers }
+    const owns = sameId(single.creatorId, userId)
+    return { owns, tiers: single.tiers, ownedIds: owns ? [campaignId] : [] }
   }
   const body = await readJson(response)
   const data = body && typeof body === "object" ? (body as { data?: unknown }).data : null
   const included = includedMap(body)
-  const list = Array.isArray(data) ? data : []
-  for (const item of list) {
-    const campaign = asResource(item)
-    if (!campaign || !sameId(idText(campaign.id), campaignId)) continue
-    let tiers = tiersOf(campaign, included)
-    if (tiers.length === 0) {
-      const single = await loadCampaign(accessToken, campaignId).catch(() => null)
-      if (single && single.tiers.length > 0) tiers = single.tiers
-    }
-    return { owns: true, tiers }
+  const list = Array.isArray(data) ? data.flatMap((item) => asResource(item) ?? []) : asResource(data) ? [asResource(data)!] : []
+  const ownedIds: string[] = []
+  let matched: CampaignTier[] | null = null
+  for (const campaign of list) {
+    const id = idText(campaign.id)
+    if (!id || ownedIds.includes(id)) continue
+    ownedIds.push(id)
+    if (!sameId(id, campaignId)) continue
+    matched = tiersOf(campaign, included)
   }
-  if (list.length === 0) return null
-  return { owns: false, tiers: [] }
+  if (matched && matched.length === 0) {
+    const single = await loadCampaign(accessToken, campaignId).catch(() => null)
+    if (single && single.tiers.length > 0) matched = single.tiers
+  }
+  if (ownedIds.length === 0) return null
+  return { owns: matched != null, tiers: matched ?? [], ownedIds }
 }
 
 function recordsReady() {
@@ -725,12 +730,14 @@ export async function libraryStatus(request: NextRequest) {
     } satisfies LibraryStatus)
   }
   const active = loaded.session.patronStatus === "active_patron"
-  let tiers: CampaignTier[] | null = null
-  if (loaded.session.isAdmin) {
-    const access = await loadCreatorAccess(loaded.session.accessToken, loaded.config.campaignId, loaded.session.patreonUserId).catch(() => null)
-    tiers = access?.owns ? access.tiers : null
-  }
-  const notice = loaded.session.isAdmin || active ? null : "No active membership on this campaign. Paid files stay hidden."
+  const access = await loadCreatorAccess(loaded.session.accessToken, loaded.config.campaignId, loaded.session.patreonUserId).catch(() => null)
+  const tiers = loaded.session.isAdmin && access?.owns ? access.tiers : null
+  const notice = membershipNotice({
+    admin: loaded.session.isAdmin,
+    active,
+    campaignId: loaded.config.campaignId,
+    ownedIds: access?.ownedIds ?? [],
+  })
   const body: LibraryStatus = {
     configured: true,
     connected: true,

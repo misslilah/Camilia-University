@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { entitledTo, isCampaignCreator, sameId, tierById, tierLabel, tierOptionLabel, tooLargeMessage } from "./patreon-access.ts"
+import { entitledTo, isCampaignCreator, membershipNotice, sameId, tierById, tierLabel, tierOptionLabel, tooLargeMessage } from "./patreon-access.ts"
 
 const studio = { id: "studio", title: "Studio", amountCents: 800 }
 const listeners = { id: "listeners", title: "Listeners", amountCents: 300 }
@@ -31,6 +31,12 @@ test("the campaign owner is the creator even without a paid membership", () => {
   assert.equal(isCampaignCreator({ campaignId: "13709558", identityCampaignId: "13709558", ownsListedCampaign: false }), true)
   assert.equal(isCampaignCreator({ campaignId: "13709558", identityCampaignId: null, ownsListedCampaign: true }), true)
   assert.equal(isCampaignCreator({ campaignId: "13709558", identityCampaignId: null, ownsListedCampaign: false }), false)
+})
+
+test("a creator signed into the wrong campaign is told which one they own", () => {
+  assert.match(membershipNotice({ admin: false, active: false, campaignId: "13709558", ownedIds: ["14481136"] }) ?? "", /14481136/)
+  assert.equal(membershipNotice({ admin: true, active: false, campaignId: "14481136", ownedIds: ["14481136"] }), null)
+  assert.match(membershipNotice({ admin: false, active: false, campaignId: "14481136", ownedIds: [] }) ?? "", /No active membership/)
 })
 
 test("an upload can only name a tier returned for the creator", () => {

@@ -135,6 +135,15 @@ export function isCampaignCreator(input: { campaignId: string; identityCampaignI
   return sameId(input.identityCampaignId, input.campaignId)
 }
 
+export function membershipNotice(input: { admin: boolean; active: boolean; campaignId: string; ownedIds: string[] }) {
+  if (input.admin || input.active) return null
+  const owned = [...new Set(input.ownedIds.map((id) => id.trim()).filter((id) => id.length > 0))]
+  if (owned.length > 0) {
+    return `This Patreon account owns campaign ${owned.join(", ")}, not ${input.campaignId}. In Vercel, set PATREON_CAMPAIGN_ID to the campaign your students use, then disconnect and connect again.`
+  }
+  return "No active membership on this campaign. Paid files stay hidden."
+}
+
 export function tierById(tiers: CampaignTier[], id: string) {
   const key = id.trim()
   if (!key) return null

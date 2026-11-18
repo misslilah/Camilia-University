@@ -8,9 +8,11 @@ import {
   signUp,
   supabaseConfig,
   uploadObject,
+  updateProfileName,
   verifyAccess,
   type AuthSession,
 } from "@/lib/supabase"
+import { properName } from "@/lib/student-name"
 
 const COOKIE = "camilia_academy"
 const HAIR = new Set(["short", "crop", "medium", "bob", "long", "bun", "ponytail"])
@@ -74,7 +76,9 @@ async function current(request: NextRequest): Promise<StudentSession | null> {
     if (!user) return null
     active = { ...refreshed, name: session.name, email: user.email || refreshed.email || session.email }
   }
-  return { ...active, userId: user.id, email: user.email || active.email }
+  const email = user.email || active.email
+  const name = user.name || properName(active.name, email) || active.name
+  return { ...active, userId: user.id, email, name }
 }
 
 export async function academyStatus(request: NextRequest) {
@@ -107,8 +111,8 @@ function cleanPassword(value: unknown) {
 export async function academySignUp(request: NextRequest) {
   if (refused(request)) return NextResponse.json({ error: "The request was refused." }, { status: 403 })
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  const name = cleanName(body?.name)
   const email = cleanEmail(body?.email)
+  const name = properName(cleanName(body?.name), email)
   const password = cleanPassword(body?.password)
   if (!name || !email || !password) {
     return NextResponse.json({ error: "Enter your name, a valid email, and a password of at least 8 characters." }, { status: 400 })
@@ -133,8 +137,22 @@ export async function academySignIn(request: NextRequest) {
   const result = await signIn(email, password)
   if ("error" in result && result.error) return NextResponse.json({ error: result.error }, { status: supabaseConfig() ? 401 : 503 })
   if (!("session" in result) || !result.session) return NextResponse.json({ error: "Those details don't match a student record." }, { status: 401 })
-  const name = cleanName(body?.name) || result.session.email.split("@")[0] || "Student"
+  const name = properName(result.session.name, email) || properName(cleanName(body?.name), email) || "Student"
   return withSession(request, { ...result.session, name })
+}
+
+export async function academyRename(request: NextRequest) {
+  if (refused(request)) return NextResponse.json({ error: "The request was refused." }, { status: 403 })
+  const session = await current(request)
+  if (!session) return NextResponse.json({ error: "Sign in to keep your name." }, { status: 401 })
+  const body = (await request.json().catch(() => null)) as { name?: unknown } | null
+  const name = properName(typeof body?.name === "string" ? body.name : "", session.email)
+  if (!name) return NextResponse.json({ error: "Enter the name you want on your student record." }, { status: 400 })
+  if (supabaseConfig()) {
+    const saved = await updateProfileName(session.accessToken, name)
+    if (!saved) return NextResponse.json({ error: "That name could not be saved." }, { status: 503 })
+  }
+  return withSession(request, { ...session, name })
 }
 
 export async function academySignOut(request: NextRequest) {
