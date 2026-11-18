@@ -124,6 +124,17 @@ export function tierLabel(tiers: EntitledTier[]) {
   return unique.length > 0 ? unique.join(", ") : null
 }
 
+export function sameId(left: string | null | undefined, right: string | null | undefined) {
+  const a = left?.trim() ?? ""
+  const b = right?.trim() ?? ""
+  return a.length > 0 && a === b
+}
+
+export function isCampaignCreator(input: { campaignId: string; identityCampaignId: string | null; ownsListedCampaign: boolean }) {
+  if (input.ownsListedCampaign) return true
+  return sameId(input.identityCampaignId, input.campaignId)
+}
+
 export function tierById(tiers: CampaignTier[], id: string) {
   const key = id.trim()
   if (!key) return null

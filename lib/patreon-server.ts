@@ -16,6 +16,8 @@ import {
 import { deleteObject, mediaPath, objectSize, signedDownloadUrl, signedUpload, supabaseConfig } from "@/lib/supabase"
 import {
   entitledTo,
+  isCampaignCreator,
+  sameId,
   sampleLibrary,
   tierById,
   tierLabel,
@@ -240,16 +242,27 @@ function asResource(value: unknown): Resource | null {
   return value as Resource
 }
 
+function idText(value: unknown) {
+  if (typeof value === "string") return value.trim()
+  if (typeof value === "number" && Number.isFinite(value)) return String(value)
+  return ""
+}
+
 function relOne(resource: Resource, name: string) {
   const data = resource.relationships?.[name]?.data
-  if (!data || Array.isArray(data) || typeof data.id !== "string") return null
-  return data.id
+  const item = Array.isArray(data) ? data[0] : data
+  if (!item || typeof item !== "object") return null
+  const id = idText(item.id)
+  return id || null
 }
 
 function relMany(resource: Resource, name: string) {
   const data = resource.relationships?.[name]?.data
   if (!Array.isArray(data)) return []
-  return data.flatMap((item) => (typeof item.id === "string" ? [item.id] : []))
+  return data.flatMap((item) => {
+    const id = idText(item.id)
+    return id ? [id] : []
+  })
 }
 
 function includedMap(body: unknown) {
@@ -279,7 +292,7 @@ function parseIdentity(body: unknown, campaignId: string): Identity | null {
   for (const memberId of relMany(data, "memberships")) {
     const member = included.get(`member:${memberId}`)
     if (!member) continue
-    if (relOne(member, "campaign") !== campaignId) continue
+    if (!sameId(relOne(member, "campaign"), campaignId)) continue
     const status = typeof member.attributes?.patron_status === "string" ? member.attributes.patron_status : null
     const entitled = relMany(member, "currently_entitled_tiers").flatMap((tierId) => {
       const tier = included.get(`tier:${tierId}`)
@@ -423,7 +436,7 @@ async function loadCreatorAccess(accessToken: string, campaignId: string, userId
     console.error("patreon campaigns failed", response.status)
     const single = await loadCampaign(accessToken, campaignId).catch(() => null)
     if (!single?.creatorId) return null
-    return { owns: single.creatorId === userId, tiers: single.tiers }
+    return { owns: sameId(single.creatorId, userId), tiers: single.tiers }
   }
   const body = await readJson(response)
   const data = body && typeof body === "object" ? (body as { data?: unknown }).data : null
@@ -431,16 +444,15 @@ async function loadCreatorAccess(accessToken: string, campaignId: string, userId
   const list = Array.isArray(data) ? data : []
   for (const item of list) {
     const campaign = asResource(item)
-    if (!campaign?.id || campaign.id !== campaignId) continue
-    const creatorId = relOne(campaign, "creator")
-    const owns = creatorId ? creatorId === userId : true
+    if (!campaign || !sameId(idText(campaign.id), campaignId)) continue
     let tiers = tiersOf(campaign, included)
-    if (owns && tiers.length === 0) {
+    if (tiers.length === 0) {
       const single = await loadCampaign(accessToken, campaignId).catch(() => null)
-      if (single?.creatorId === userId && single.tiers.length > 0) tiers = single.tiers
+      if (single && single.tiers.length > 0) tiers = single.tiers
     }
-    return { owns, tiers }
+    return { owns: true, tiers }
   }
+  if (list.length === 0) return null
   return { owns: false, tiers: [] }
 }
 
@@ -472,8 +484,11 @@ function mediaRow(item: LibraryMedia): MediaRow & { storage_path: string } {
 }
 
 function decideAdmin(identity: Identity, campaignId: string, access: CreatorAccess | null) {
-  if (access) return access.owns
-  return identity.campaignId === campaignId
+  return isCampaignCreator({
+    campaignId,
+    identityCampaignId: identity.campaignId,
+    ownsListedCampaign: access?.owns === true,
+  })
 }
 
 async function saveSession(id: string, identity: Identity, token: TokenBundle, admin: boolean) {
@@ -675,7 +690,7 @@ function guestStatus(expired: boolean): LibraryStatus {
 
 export async function libraryStatus(request: NextRequest) {
   if (!patreonConfig()) return apiJson(sampleLibrary())
-  const loaded = await currentSession(request, false)
+  const loaded = await currentSession(request, true)
   if (loaded.kind === "unconfigured") return apiJson(sampleLibrary())
   if (loaded.kind === "database") {
     return apiJson({
