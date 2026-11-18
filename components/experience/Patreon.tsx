@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Trash2, Upload } from "lucide-react"
-import { clearLibraryError, deleteMedia, uploadFiles, useLibrary, type MediaKind } from "@/lib/patreon"
+import { clearLibraryError, deleteMedia, disconnectPatreon, uploadFiles, useLibrary, type MediaKind } from "@/lib/patreon"
 import { cn } from "@/lib/utils"
 
 export function PatreonMark({ className }: { className?: string; strokeWidth?: number }) {
@@ -50,16 +50,25 @@ function formatDate(ms: number) {
   })
 }
 
-const EMPTY: Record<MediaKind, string> = {
-  audio: "No audio is in the library yet. Upload a file to keep it in this browser.",
-  video: "No video is in the library yet. Upload a file to keep it in this browser.",
+function emptyCopy(admin: boolean, tab: MediaKind, busy: boolean) {
+  if (busy) return "Saving the file."
+  if (admin) {
+    return tab === "audio"
+      ? "No audio is in the library yet. Upload a file and assign a tier."
+      : "No video is in the library yet. Upload a file and assign a tier."
+  }
+  return "Nothing to play in this tab yet."
 }
 
 export function Patreon() {
   const library = useLibrary()
   const [tab, setTab] = useState<MediaKind>("video")
   const [busy, setBusy] = useState(false)
+  const [tierTitle, setTierTitle] = useState("")
+  const [tierCents, setTierCents] = useState("")
   const listed = library.items.filter((item) => item.kind === tab)
+  const knownTiers = library.tiers ?? []
+  const pickTier = knownTiers.length > 0
 
   const choose = (next: MediaKind) => {
     if (next === tab) return
@@ -71,7 +80,7 @@ export function Patreon() {
     if (!library.ready || files.length === 0) return
     setBusy(true)
     try {
-      await uploadFiles(tab, files)
+      await uploadFiles(tab, files, tierTitle, tierCents)
     } finally {
       setBusy(false)
     }
@@ -80,7 +89,45 @@ export function Patreon() {
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#ee4f96] text-[#5c2144]">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 pt-4 pb-3">
-        <p className="text-[28px] leading-none font-bold tracking-tight text-white">Patreon</p>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <p className="text-[28px] leading-none font-bold tracking-tight text-white">Patreon</p>
+          {!library.ready ? null : !library.configured ? (
+            <div className="flex flex-col items-start gap-1">
+              <button
+                type="button"
+                disabled
+                aria-describedby="patreon-unconfigured"
+                className="inline-flex h-8 cursor-not-allowed items-center rounded-full bg-white/75 px-4 text-[13px] font-semibold text-[#7a2450]"
+              >
+                Connect with Patreon
+              </button>
+              <p id="patreon-unconfigured" className="text-[12px] font-medium text-white">
+                Patreon is not configured yet.
+              </p>
+            </div>
+          ) : library.connected ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {library.admin && <span className="rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-[#c2185b]">Creator</span>}
+              {library.tierTitle && (
+                <span className="rounded-full bg-white/85 px-3 py-1 text-[12px] font-semibold text-[#7a2450]">Tier: {library.tierTitle}</span>
+              )}
+              <button
+                type="button"
+                onClick={() => void disconnectPatreon()}
+                className="text-[12px] font-semibold text-white underline decoration-white/70 underline-offset-2"
+              >
+                Disconnect
+              </button>
+            </div>
+          ) : (
+            <a
+              href="/api/patreon/login"
+              className="inline-flex h-8 items-center rounded-full bg-white px-4 text-[13px] font-semibold text-[#c2185b] hover:bg-[#fff4f8] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+            >
+              Connect with Patreon
+            </a>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <div role="tablist" aria-label="Patreon library" className="flex items-center gap-2">
             {(["video", "audio"] as const).map((kind) => (
@@ -99,29 +146,72 @@ export function Patreon() {
               </button>
             ))}
           </div>
-          <label
-            className={cn(
-              "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-[#c72d6e] px-4 text-[13px] font-semibold text-white hover:bg-[#b02562]",
-              (!library.ready || busy) && "pointer-events-none opacity-60",
-            )}
-          >
-            <Upload className="h-3.5 w-3.5" />
-            {busy ? "Saving…" : tab === "audio" ? "Upload audio" : "Upload video"}
-            <input
-              key={tab}
-              type="file"
-              accept={tab === "audio" ? "audio/*" : "video/*"}
-              multiple
-              disabled={!library.ready || busy}
-              className="sr-only"
-              onChange={(event) => {
-                const input = event.currentTarget
-                const files = input.files ? [...input.files] : []
-                input.value = ""
-                void onFiles(files)
-              }}
-            />
-          </label>
+          {library.admin && (
+            <>
+              {pickTier ? (
+                <select
+                  aria-label="Tier"
+                  value={knownTiers.some((tier) => tier.title === tierTitle) ? tierTitle : ""}
+                  onChange={(event) => {
+                    const title = event.target.value
+                    setTierTitle(title)
+                    const match = knownTiers.find((tier) => tier.title === title)
+                    setTierCents(match?.amountCents != null ? String(match.amountCents) : "")
+                  }}
+                  className="h-8 rounded-full bg-white px-3 text-[13px] font-semibold text-[#5c2144] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+                >
+                  <option value="">Tier</option>
+                  {knownTiers.map((tier) => (
+                    <option key={`${tier.title}-${tier.amountCents ?? "x"}`} value={tier.title}>
+                      {tier.title}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <>
+                  <input
+                    aria-label="Tier title"
+                    value={tierTitle}
+                    placeholder="Tier title"
+                    onChange={(event) => setTierTitle(event.target.value)}
+                    className="h-8 w-36 rounded-full bg-white px-3 text-[13px] text-[#5c2144] placeholder:text-[#b45b82] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+                  />
+                  <input
+                    aria-label="Tier amount in cents"
+                    value={tierCents}
+                    inputMode="numeric"
+                    placeholder="Cents"
+                    onChange={(event) => setTierCents(event.target.value.replace(/[^\d]/g, "").slice(0, 8))}
+                    className="h-8 w-20 rounded-full bg-white px-3 text-[13px] text-[#5c2144] placeholder:text-[#b45b82] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+                  />
+                </>
+              )}
+              <label
+                className={cn(
+                  "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-[#c72d6e] px-4 text-[13px] font-semibold text-white hover:bg-[#b02562]",
+                  (!library.ready || busy) && "pointer-events-none opacity-60",
+                )}
+              >
+                <Upload className="h-3.5 w-3.5" />
+                {busy ? "Saving…" : tab === "audio" ? "Upload audio" : "Upload video"}
+                <input
+                  key={tab}
+                  type="file"
+                  accept={tab === "audio" ? "audio/*" : "video/*"}
+                  multiple
+                  disabled={!library.ready || busy}
+                  className="sr-only"
+                  onChange={(event) => {
+                    const input = event.currentTarget
+                    const files = input.files ? [...input.files] : []
+                    input.value = ""
+                    void onFiles(files)
+                  }}
+                />
+              </label>
+              <span className="text-[12px] font-medium text-white/90">24 MB max</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -130,13 +220,18 @@ export function Patreon() {
           {library.error}
         </p>
       )}
+      {library.notice && (
+        <p role="status" className="mx-5 mb-3 rounded-[16px] bg-white/85 px-4 py-2 text-sm text-[#5c2144]">
+          {library.notice}
+        </p>
+      )}
 
       <div role="tabpanel" aria-label={tab === "audio" ? "Audio" : "Video"} className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
         <div className="rounded-[22px] bg-[#ffc6df] p-3 shadow-[0_10px_28px_rgba(170,40,90,0.16)]">
           {!library.ready ? (
             <p className="px-3 py-8 text-center text-sm text-[#5c2144]/70">Opening the library…</p>
           ) : listed.length === 0 ? (
-            <p className="px-4 py-10 text-center text-sm leading-relaxed text-[#5c2144]/80">{busy ? "Saving the file." : EMPTY[tab]}</p>
+            <p className="px-4 py-10 text-center text-sm leading-relaxed text-[#5c2144]/80">{emptyCopy(library.admin, tab, busy)}</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {listed.map((item) => (
@@ -147,28 +242,36 @@ export function Patreon() {
                         <p className="truncate text-[15px] font-semibold text-[#5a1840]" title={item.name}>
                           {item.name}
                         </p>
-                        {item.duration != null && (
-                          <span className="shrink-0 text-sm text-[#8a3a60]">{formatDuration(item.duration)}</span>
-                        )}
+                        {item.duration != null && <span className="shrink-0 text-sm text-[#8a3a60]">{formatDuration(item.duration)}</span>}
                       </div>
                       <p className="mt-0.5 text-xs text-[#8a3a60]">
-                        <span>{formatSize(item.size)}</span>
+                        <span className="font-semibold text-[#7a2450]">{item.tierTitle}</span>
+                        {item.sample && <span> · Sample</span>}
+                        <span> · {formatSize(item.size)}</span>
                         <span> · {formatDate(item.addedAt)}</span>
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      aria-label={`Delete ${item.name}`}
-                      onClick={() => void deleteMedia(item.id)}
-                      className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-white px-3 text-[12px] font-semibold text-[#c2185b] hover:bg-[#ffe0ec] focus-visible:ring-2 focus-visible:ring-[#c2185b] focus-visible:outline-none"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Delete
-                    </button>
+                    {library.admin && !item.sample && (
+                      <button
+                        type="button"
+                        aria-label={`Delete ${item.name}`}
+                        onClick={() => void deleteMedia(item.id)}
+                        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-white px-3 text-[12px] font-semibold text-[#c2185b] hover:bg-[#ffe0ec] focus-visible:ring-2 focus-visible:ring-[#c2185b] focus-visible:outline-none"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete
+                      </button>
+                    )}
                   </div>
-                  {item.kind === "audio" ? (
+                  {item.locked ? (
+                    <p className="mt-2 text-sm text-[#8a3a60]">
+                      {item.sample
+                        ? "Locked sample. A subscriber who is not entitled to this tier sees the row this way."
+                        : `Locked. Your membership does not include the ${item.tierTitle} tier.`}
+                    </p>
+                  ) : item.url && item.kind === "audio" ? (
                     <audio controls preload="metadata" src={item.url} aria-label={item.name} className="mt-2 h-9 w-full rounded-[10px]" />
-                  ) : (
+                  ) : item.url ? (
                     <div className="mt-2 overflow-hidden rounded-[10px] bg-black">
                       <video
                         controls
@@ -179,6 +282,8 @@ export function Patreon() {
                         className="max-h-40 w-full bg-black object-contain"
                       />
                     </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-[#8a3a60]">Sample. Nothing plays until the creator uploads a real file.</p>
                   )}
                 </li>
               ))}

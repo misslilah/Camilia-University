@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { Browser } from "@/components/experience/browser/Browser"
 import { Patreon, PatreonMark } from "@/components/experience/Patreon"
+import { usePatreonAdmin } from "@/lib/patreon"
 import { Button } from "@/components/ui/button"
 import { PANEL_BREAKPOINT } from "@/lib/scene"
 import { useScreenRect, type ScreenRect } from "@/lib/screen-rect"
@@ -188,7 +189,7 @@ function Desktop({ active, scale, onLeave }: { active: boolean; scale: number; o
       const { w, h } = size()
       const n = list.length
       if (isWorkspace(id)) {
-        const preferred = id === "browser" ? { w: 980, h: 660 } : { w: 720, h: 540 }
+        const preferred = id === "browser" ? { w: 980, h: 660 } : { w: 760, h: 620 }
         const width = Math.min(preferred.w, w - 40)
         const height = Math.min(preferred.h, h - 32)
         const x = Math.max(12, (w - width) / 2 + n * 18)
@@ -420,6 +421,7 @@ function AppWindow({
 }) {
   const grab = useRef<{ x: number; y: number; wx: number; wy: number } | null>(null)
   const stretch = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
+  const patreonAdmin = usePatreonAdmin()
   const meta = app(win.app)
   const Icon = meta.icon
   const workspace = isWorkspace(win.app)
@@ -487,7 +489,7 @@ function AppWindow({
       >
         <Icon className="h-4 w-4 opacity-80" />
         <span className="truncate text-[13px] font-medium">{meta.name}</span>
-        {win.app === "patreon" && (
+        {win.app === "patreon" && patreonAdmin && (
           <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-white/80">Admin</span>
         )}
         <span className="flex-1" />

@@ -1,34 +1,13 @@
 import { useEffect, useSyncExternalStore } from "react"
+import { MAX_UPLOAD_BYTES, sampleLibrary, tooLargeMessage, type LibraryItem, type LibraryStatus, type MediaKind } from "@/lib/patreon-access"
 
-// The admin library keeps the audio and video bytes in IndexedDB.
-// localStorage is too small for video, and it cannot store a Blob.
-export type MediaKind = "audio" | "video"
+export type { LibraryItem, LibraryStatus, MediaKind }
 
-export type MediaItem = {
-  id: string
-  kind: MediaKind
-  name: string
-  size: number
-  mime: string
-  addedAt: number
-  duration: number | null
-  url: string
-}
+type Snapshot = LibraryStatus & { ready: boolean; error: string | null }
 
-type MediaRecord = Omit<MediaItem, "url"> & { blob: Blob }
-
-type Snapshot = {
-  ready: boolean
-  items: MediaItem[]
-  error: string | null
-}
-
-const DB_NAME = "camilia-patreon"
-const STORE = "media"
-const EMPTY: Snapshot = { ready: false, items: [], error: null }
+const EMPTY: Snapshot = { ...sampleLibrary(), ready: false, notice: null, items: [], error: null }
 
 let state: Snapshot = EMPTY
-let database: Promise<IDBDatabase> | null = null
 let loading: Promise<void> | null = null
 let tail: Promise<unknown> = Promise.resolve()
 const listeners = new Set<() => void>()
@@ -51,18 +30,59 @@ function enqueue<T>(job: () => Promise<T>): Promise<T> {
   return run
 }
 
-export class LibraryError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = "LibraryError"
-  }
+const OAUTH_ERRORS: Record<string, string> = {
+  config: "Patreon is not configured yet.",
+  denied: "The Patreon connection was cancelled.",
+  state: "The Patreon connection could not be confirmed. Try again.",
+  token: "Patreon did not accept the connection. Try again.",
+  identity: "Patreon did not return your membership. Try again.",
+  database: "The library could not be opened.",
 }
 
-function isQuota(error: unknown) {
-  if (!error || typeof error !== "object") return false
-  const name = "name" in error ? String(error.name) : ""
-  const code = "code" in error ? Number(error.code) : 0
-  return name === "QuotaExceededError" || name === "NS_ERROR_DOM_QUOTA_REACHED" || code === 22
+function takeOauthError() {
+  const params = new URLSearchParams(window.location.search)
+  if (params.get("patreon") == null) return null
+  const reason = params.get("reason")
+  const message = params.get("patreon") === "error" ? (OAUTH_ERRORS[reason ?? ""] ?? "Patreon could not be connected. Try again.") : null
+  params.delete("patreon")
+  params.delete("reason")
+  const query = params.toString()
+  const next = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`
+  window.history.replaceState(null, "", next)
+  return message
+}
+
+function isStatus(value: unknown): value is LibraryStatus {
+  if (!value || typeof value !== "object") return false
+  const row = value as Partial<LibraryStatus>
+  return typeof row.configured === "boolean" && typeof row.connected === "boolean" && Array.isArray(row.items)
+}
+
+async function readStatus(): Promise<{ status: LibraryStatus; error: string | null }> {
+  const oauth = takeOauthError()
+  const response = await fetch("/api/patreon/status", { credentials: "same-origin", cache: "no-store" })
+  const body: unknown = await response.json().catch(() => null)
+  if (!response.ok || !isStatus(body)) {
+    return { status: { ...sampleLibrary(), items: [], notice: "The library could not be opened." }, error: oauth }
+  }
+  return { status: body, error: oauth }
+}
+
+async function ensureLoaded() {
+  if (state.ready) return
+  if (!loading) {
+    loading = readStatus()
+      .then(({ status, error }) => {
+        state = { ...status, ready: true, error }
+        emit()
+      })
+      .catch(() => {
+        loading = null
+        state = { ...sampleLibrary(), items: [], ready: true, notice: "The library could not be opened.", error: null }
+        emit()
+      })
+  }
+  await loading
 }
 
 function fileLabel(file: File, kind: MediaKind) {
@@ -70,144 +90,10 @@ function fileLabel(file: File, kind: MediaKind) {
   return name || (kind === "audio" ? "Audio" : "Video")
 }
 
-function explain(error: unknown, name: string) {
-  if (error instanceof LibraryError) return error.message
-  if (isQuota(error)) {
-    return `This browser has no room left for "${name}". Delete a file from the library and try again.`
-  }
-  return `"${name}" could not be saved.`
-}
-
-function openDatabase() {
-  if (typeof indexedDB === "undefined") {
-    return Promise.reject(new LibraryError("The library could not be opened in this browser."))
-  }
-  if (!database) {
-    database = new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, 1)
-      request.onupgradeneeded = () => {
-        const db = request.result
-        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" })
-      }
-      request.onsuccess = () => {
-        const db = request.result
-        db.onversionchange = () => {
-          db.close()
-          database = null
-        }
-        resolve(db)
-      }
-      request.onerror = () => {
-        database = null
-        reject(request.error ?? new LibraryError("The library could not be opened in this browser."))
-      }
-    })
-  }
-  return database
-}
-
-function finish(tx: IDBTransaction) {
-  return new Promise<void>((resolve, reject) => {
-    let settled = false
-    const fail = () => {
-      if (settled) return
-      settled = true
-      reject(tx.error ?? new Error("The library could not be updated."))
-    }
-    tx.oncomplete = () => {
-      if (settled) return
-      settled = true
-      resolve()
-    }
-    tx.onerror = fail
-    tx.onabort = fail
-  })
-}
-
-function isRecord(value: unknown): value is MediaRecord {
-  if (!value || typeof value !== "object") return false
-  const row = value as Partial<MediaRecord>
-  return (
-    typeof row.id === "string" &&
-    (row.kind === "audio" || row.kind === "video") &&
-    typeof row.name === "string" &&
-    typeof row.size === "number" &&
-    typeof row.mime === "string" &&
-    typeof row.addedAt === "number" &&
-    (row.duration === null || typeof row.duration === "number") &&
-    row.blob instanceof Blob
-  )
-}
-
-async function listRecords() {
-  const db = await openDatabase()
-  return new Promise<MediaRecord[]>((resolve, reject) => {
-    const tx = db.transaction(STORE, "readonly")
-    const request = tx.objectStore(STORE).getAll()
-    let settled = false
-    const fail = () => {
-      if (settled) return
-      settled = true
-      reject(tx.error ?? request.error ?? new Error("The library could not be read."))
-    }
-    tx.oncomplete = () => {
-      if (settled) return
-      settled = true
-      const rows = Array.isArray(request.result) ? request.result : []
-      resolve(rows.filter(isRecord).sort((a, b) => b.addedAt - a.addedAt || a.id.localeCompare(b.id)))
-    }
-    tx.onerror = fail
-    tx.onabort = fail
-  })
-}
-
-function withUrl(record: MediaRecord): MediaItem {
-  const { blob, ...rest } = record
-  return { ...rest, url: URL.createObjectURL(blob) }
-}
-
-async function ensureLoaded() {
-  if (state.ready) return
-  if (!loading) {
-    loading = listRecords()
-      .then((records) => {
-        state = { ready: true, error: null, items: records.map(withUrl) }
-        emit()
-      })
-      .catch((error: unknown) => {
-        loading = null
-        const message = error instanceof LibraryError ? error.message : "The library could not be opened in this browser."
-        state = { ready: true, error: message, items: [] }
-        emit()
-      })
-  }
-  await loading
-}
-
 function wrongKind(file: File, kind: MediaKind) {
   const type = file.type.toLowerCase()
   if (!type || type.startsWith(`${kind}/`)) return null
   return `"${fileLabel(file, kind)}" is not ${kind === "audio" ? "an audio file" : "a video file"}.`
-}
-
-function mimeFor(file: File, kind: MediaKind) {
-  if (file.type) return file.type
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
-  const known: Record<string, string> = {
-    wav: "audio/wav",
-    mp3: "audio/mpeg",
-    ogg: kind === "audio" ? "audio/ogg" : "video/ogg",
-    m4a: "audio/mp4",
-    aac: "audio/aac",
-    flac: "audio/flac",
-    opus: "audio/opus",
-    mp4: "video/mp4",
-    webm: kind === "audio" ? "audio/webm" : "video/webm",
-    mov: "video/quicktime",
-    m4v: "video/mp4",
-    mkv: "video/webm",
-  }
-  return known[ext] ?? ""
 }
 
 function probeDuration(file: File, kind: MediaKind, name: string) {
@@ -226,10 +112,7 @@ function probeDuration(file: File, kind: MediaKind, name: string) {
       URL.revokeObjectURL(url)
       fn()
     }
-    const timer = window.setTimeout(
-      () => finishProbe(() => reject(new LibraryError(`"${name}" could not be read. Choose a file this browser can play.`))),
-      8000,
-    )
+    const timer = window.setTimeout(() => finishProbe(() => reject(new Error(`"${name}" could not be read. Choose a file this browser can play.`))), 8000)
     el.preload = "metadata"
     el.muted = true
     el.setAttribute("playsinline", "")
@@ -242,70 +125,79 @@ function probeDuration(file: File, kind: MediaKind, name: string) {
     el.ondurationchange = () => {
       if (Number.isFinite(el.duration)) ready()
     }
-    el.onerror = () => finishProbe(() => reject(new LibraryError(`"${name}" could not be read. Choose a file this browser can play.`)))
+    el.onerror = () => finishProbe(() => reject(new Error(`"${name}" could not be read. Choose a file this browser can play.`)))
     document.body.appendChild(el)
     el.src = url
   })
 }
 
-async function putRecord(record: MediaRecord) {
-  const db = await openDatabase()
-  const tx = db.transaction(STORE, "readwrite")
-  tx.objectStore(STORE).put(record)
-  await finish(tx)
+async function errorMessage(response: Response, fallback: string) {
+  if (response.status === 413) return tooLargeMessage()
+  const body: unknown = await response.json().catch(() => null)
+  if (body && typeof body === "object" && "error" in body && typeof body.error === "string") return body.error.slice(0, 240)
+  return fallback
 }
 
-// Runs inside the library queue. Callers own the error shown on the window.
-async function uploadOne(kind: MediaKind, file: File) {
-  await ensureLoaded()
-  const name = fileLabel(file, kind)
-  const mismatch = wrongKind(file, kind)
-  if (mismatch) throw new LibraryError(mismatch)
-  if (file.size <= 0) throw new LibraryError(`"${name}" is empty.`)
-  let duration: number | null
-  try {
-    duration = await probeDuration(file, kind, name)
-  } catch (error) {
-    throw error instanceof LibraryError ? error : new LibraryError(explain(error, name))
-  }
-  const mime = mimeFor(file, kind)
-  const record: MediaRecord = {
-    id: crypto.randomUUID(),
-    kind,
-    name,
-    size: file.size,
-    mime,
-    addedAt: Date.now(),
-    duration,
-    blob: file.slice(0, file.size, mime || undefined),
-  }
-  try {
-    await putRecord(record)
-  } catch (error) {
-    throw new LibraryError(explain(error, name))
-  }
-  const item = withUrl(record)
-  state = { ...state, ready: true, items: [item, ...state.items.filter((entry) => entry.id !== item.id)] }
-  emit()
-  return item
-}
-
-export function uploadFiles(kind: MediaKind, files: File[]) {
+export function uploadFiles(kind: MediaKind, files: File[], tierTitle: string, tierCents: string) {
   return enqueue(async () => {
+    await ensureLoaded()
     state = { ...state, error: null }
     emit()
+    const title = tierTitle.trim()
+    if (!state.admin) {
+      state = { ...state, error: "Only the creator can upload a file." }
+      emit()
+      return state.error
+    }
+    if (!title) {
+      state = { ...state, error: "Enter the Patreon tier title. It has to match the tier name exactly." }
+      emit()
+      return state.error
+    }
+    if (tierCents.trim() && !/^\d{1,8}$/.test(tierCents.trim())) {
+      state = { ...state, error: "Enter the tier amount in cents, or leave it blank." }
+      emit()
+      return state.error
+    }
     let first: string | null = null
     for (const file of files) {
+      const name = fileLabel(file, kind)
+      const mismatch = wrongKind(file, kind)
+      if (mismatch) {
+        first ??= mismatch
+        continue
+      }
+      if (file.size <= 0) {
+        first ??= `"${name}" is empty.`
+        continue
+      }
+      if (file.size > MAX_UPLOAD_BYTES) {
+        first ??= tooLargeMessage(name)
+        continue
+      }
+      let duration: number | null = null
       try {
-        await uploadOne(kind, file)
+        duration = await probeDuration(file, kind, name)
       } catch (error) {
-        first ??= error instanceof LibraryError ? error.message : explain(error, fileLabel(file, kind))
+        first ??= error instanceof Error ? error.message : `"${name}" could not be read.`
+        continue
+      }
+      const body = new FormData()
+      body.set("kind", kind)
+      body.set("tierTitle", title)
+      if (tierCents.trim()) body.set("tierCents", tierCents.trim())
+      if (duration != null) body.set("duration", String(duration))
+      body.set("file", file, name)
+      try {
+        const response = await fetch("/api/patreon/media", { method: "POST", body, credentials: "same-origin" })
+        if (!response.ok) first ??= await errorMessage(response, `"${name}" could not be saved.`)
+      } catch {
+        first ??= `"${name}" could not be saved.`
       }
     }
-    if (first) {
-      state = { ...state, error: first }
-      emit()
-    }
+    const fresh = await readStatus().catch(() => null)
+    state = fresh ? { ...fresh.status, ready: true, error: first ?? fresh.error } : { ...state, error: first ?? "The library could not be opened." }
+    emit()
     return first
   })
 }
@@ -314,20 +206,43 @@ export function deleteMedia(id: string) {
   return enqueue(async () => {
     await ensureLoaded()
     try {
-      const db = await openDatabase()
-      const tx = db.transaction(STORE, "readwrite")
-      tx.objectStore(STORE).delete(id)
-      await finish(tx)
-      const item = state.items.find((entry) => entry.id === id)
-      state = { ...state, items: state.items.filter((entry) => entry.id !== id), error: null }
+      const response = await fetch(`/api/patreon/media/${encodeURIComponent(id)}`, { method: "DELETE", credentials: "same-origin" })
+      if (!response.ok) {
+        const message = await errorMessage(response, "That file could not be deleted.")
+        state = { ...state, error: message }
+        emit()
+        return
+      }
+      const fresh = await readStatus()
+      state = { ...fresh.status, ready: true, error: fresh.error }
       emit()
-      if (item) window.setTimeout(() => URL.revokeObjectURL(item.url), 0)
-    } catch (error) {
-      const message = explain(error, "that file")
-      state = { ...state, error: message }
+    } catch {
+      state = { ...state, error: "That file could not be deleted." }
       emit()
-      throw new LibraryError(message)
     }
+  })
+}
+
+export function disconnectPatreon() {
+  return enqueue(async () => {
+    await ensureLoaded()
+    try {
+      const response = await fetch("/api/patreon/logout", { method: "POST", credentials: "same-origin" })
+      if (!response.ok) {
+        state = { ...state, error: "Patreon could not be disconnected." }
+        emit()
+        return
+      }
+    } catch {
+      state = { ...state, error: "Patreon could not be disconnected." }
+      emit()
+      return
+    }
+    const fresh = await readStatus().catch(() => null)
+    state = fresh
+      ? { ...fresh.status, ready: true, error: fresh.error }
+      : { ...state, connected: false, admin: false, tierTitle: null, items: [], error: null }
+    emit()
   })
 }
 
@@ -337,10 +252,24 @@ export function clearLibraryError() {
   emit()
 }
 
+function forgetLocalLibrary() {
+  if (typeof indexedDB === "undefined") return
+  try {
+    indexedDB.deleteDatabase("camilia-patreon")
+  } catch {
+    // The old browser-only copies are unused once the library is on the server.
+  }
+}
+
 export function useLibrary() {
   const snapshot = useSyncExternalStore(subscribe, () => state, () => EMPTY)
   useEffect(() => {
+    forgetLocalLibrary()
     void ensureLoaded()
   }, [])
   return snapshot
+}
+
+export function usePatreonAdmin() {
+  return useSyncExternalStore(subscribe, () => state.admin, () => false)
 }

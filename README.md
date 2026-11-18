@@ -28,7 +28,16 @@ In the bedroom, hover the monitor (it lights up) and click or tap it: you sit do
 
 The desktop shows the Camilia wallpaper and six icons: My Files, Courses, Browser, Notes, Trash and Patreon. Click an icon to select it and double-click (double-tap on a phone) to open it. Browser and Patreon open their own windows; the other apps are not built yet and open a "coming soon" window. Windows can be dragged by their title bar, brought to the front, minimised to the taskbar and closed. Icons can be dragged to another spot on the grid. The taskbar has a Start menu (signed in as Student, with the apps and Shut down), the open windows, a system tray and the local time and date.
 
-Patreon is the admin library, marked with a small Admin chip on its window. There is no sign-in. Its icon is an original coral rounded tile with a white capital P, and the name Patreon is plain text under it. The window has an Audio tab and a Video tab. Each tab uploads files, lists the name, the duration when it can be read, the size and the date, plays them in the window, and deletes them. The files stay in this browser. The window can be resized or maximised, like Browser.
+Patreon is the creator's library. Its icon is an original coral rounded tile with a white capital P, and the name Patreon is plain text under it. The window has a Video tab and an Audio tab, pills, and cards. Connect with Patreon opens the visitor's own Patreon account (scopes `identity` and `identity.memberships`) and returns to `/api/patreon/callback`. The server keeps the refresh token, and each visit refreshes the membership so the tier stays current. The creator of the campaign is the admin: the window shows an Admin chip, and only they can upload or delete. Everyone else is a subscriber.
+
+An upload is limited to 24 MB. The admin assigns a tier, using the campaign's tier titles when Patreon returns them, or by typing the title so it matches Patreon exactly. An optional amount in cents records the order: an active patron can play a file when that tier is one of their currently entitled tiers on this campaign, or when their tier amount is at least the file's amount. A file outside the tier is listed as locked and is not streamed. With no active membership the window stays open, with a short explanation, and paid files stay hidden. The creator's files are stored in the app's Postgres database, so every subscriber sees the same library.
+
+Until `PATREON_CLIENT_ID`, `PATREON_CLIENT_SECRET`, and `PATREON_CAMPAIGN_ID` are set, the connect button explains that Patreon is not configured yet and the library shows labeled sample files. There is no stand-in login. Register both of these redirect URIs on the Patreon client:
+
+- `http://127.0.0.1:3847/api/patreon/callback`
+- `https://camilia-university.apps.grok.bot/api/patreon/callback`
+
+The three values are read from the server environment only. The host sets `DATABASE_URL` for the published database; it is not one of the Patreon secrets. The window can be resized or maximised, like Browser.
 
 #### The browser
 
