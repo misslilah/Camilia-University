@@ -18,6 +18,8 @@ export function Hud({
   onLeaveHall,
   onSelect,
   onBack,
+  student,
+  onSignOut,
   muted,
   onToggleSound,
 }: {
@@ -33,6 +35,8 @@ export function Hud({
   onLeaveHall: () => void
   onSelect: (id: string) => void
   onBack: () => void
+  student: { name: string } | null
+  onSignOut: () => void
   muted: boolean
   onToggleSound: () => void
 }) {
@@ -104,6 +108,14 @@ export function Hud({
               <ArrowRight />
             </Button>
           </div>
+          {student && (
+            <p className="text-xs text-[#f6f0e6]/70">
+              Enrolled as {student.name}
+              <button type="button" className="ml-2 underline underline-offset-2 hover:text-[#f6f0e6]" onClick={onSignOut}>
+                Sign out
+              </button>
+            </p>
+          )}
         </div>
       </div>
 

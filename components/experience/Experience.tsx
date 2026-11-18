@@ -9,6 +9,7 @@ import { Blackboard, Signage } from "@/components/experience/Blackboard"
 import { Director, type LookOffset } from "@/components/experience/Director"
 import { ComputerDesktop, useNarrow } from "@/components/experience/ComputerDesktop"
 import { Doors } from "@/components/experience/Doors"
+import { Enrollment, type Student } from "@/components/experience/Enrollment"
 import { Hall, Lights, Motes } from "@/components/experience/Hall"
 import { Hud } from "@/components/experience/Hud"
 import { Seating } from "@/components/experience/Seating"
@@ -65,6 +66,9 @@ export default function Experience() {
   const [saved] = useState(() => loadCharacter())
   const [character, setCharacter] = useState<Character | null>(saved?.character ?? null)
   const [created, setCreated] = useState(saved?.created ?? false)
+  const [student, setStudent] = useState<Student | null>(null)
+  const [academyReady, setAcademyReady] = useState(false)
+  const [gate, setGate] = useState<null | "hall" | "direct" | "room">(null)
   const avatarYawRef = useRef(0)
   const spinRef = useRef<{ x: number; yaw: number } | null>(null)
 
@@ -118,6 +122,54 @@ export default function Experience() {
     go("toRoom")
   }, [go, phase, reduced])
 
+  const beginEntry = useCallback(
+    (next: "hall" | "direct" | "room") => {
+      if (phase !== "arrival") return
+      if (!student) {
+        setGate(next)
+        return
+      }
+      if (next === "hall") openDoors()
+      else if (next === "direct") skip()
+      else enterRoom()
+    },
+    [enterRoom, openDoors, phase, skip, student],
+  )
+
+  useEffect(() => {
+    let cancel = false
+    fetch("/api/academy/session")
+      .then((response) => response.json())
+      .then(async (data: { configured?: boolean; student?: Student | null }) => {
+        if (cancel) return
+        setAcademyReady(Boolean(data.configured))
+        if (data.student) {
+          setStudent(data.student)
+          const progress = await fetch("/api/academy/progress")
+            .then((response) => response.json())
+            .catch(() => null)
+          if (cancel || !progress?.character) return
+          const restored = progress.character as Character
+          saveCharacter(restored)
+          setCharacter(restored)
+          setCreated(true)
+          return
+        }
+        if (!data.configured) {
+          try {
+            const local = JSON.parse(window.localStorage.getItem("camilia-student") || "") as Student
+            if (local?.name && local?.email) setStudent(local)
+          } catch {
+            // No local student record yet.
+          }
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancel = true
+    }
+  }, [])
+
   const roomReached = useCallback(() => {
     lookRef.current = { yaw: 0, pitch: 0 }
     sound.roomArrive(reduced)
@@ -167,8 +219,15 @@ export default function Experience() {
 
   // A character being created stays a draft until it is confirmed.
   useEffect(() => {
-    if (created && character) saveCharacter(character)
-  }, [character, created])
+    if (!created || !character) return
+    saveCharacter(character)
+    if (!student || !academyReady) return
+    fetch("/api/academy/progress", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ character }),
+    }).catch(() => {})
+  }, [academyReady, character, created, student])
 
   const createCharacter = useCallback(() => setCreated(true), [])
 
@@ -275,9 +334,9 @@ export default function Experience() {
       }
       const target = event.target
       if (target instanceof HTMLElement && target.closest("button, a, input, textarea, [role=slider], [role=tab]")) return
-      if (phase === "arrival" && (event.key === "Enter" || event.key === " ")) {
+      if (phase === "arrival" && !gate && (event.key === "Enter" || event.key === " ")) {
         event.preventDefault()
-        openDoors()
+        beginEntry("hall")
       }
       if (phase === "opening" && event.key === "Escape") skip()
       if (phase === "room" && event.key === "Escape") leaveRoom()
@@ -319,7 +378,7 @@ export default function Experience() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [chapterId, closeChapter, closeComputer, closeWardrobe, focused, leaveHall, leaveRoom, openChapter, openDoors, phase, pickSeat, settled, skip, stand, turnAvatar])
+  }, [beginEntry, chapterId, closeChapter, closeComputer, closeWardrobe, focused, gate, leaveHall, leaveRoom, openChapter, phase, pickSeat, settled, skip, stand, turnAvatar])
 
   if (!webgl) return <FlatCampus />
 
@@ -363,8 +422,8 @@ export default function Experience() {
         <Lights seated={phase === "sitting"} away={inRoom(phase)} openRef={openRef} />
         <group visible={phase !== "wardrobe" && phase !== "computer"}>
           <Hall />
-          <Doors openRef={openRef} phase={phase} onOpen={openDoors} />
-          <RoomDoor phase={phase} amountRef={roomDoorRef} onOpen={enterRoom} />
+          <Doors openRef={openRef} phase={phase} onOpen={() => beginEntry("hall")} />
+          <RoomDoor phase={phase} amountRef={roomDoorRef} onOpen={() => beginEntry("room")} />
           <Seating phase={phase} activeId={activeId} onHover={setHovered} onPick={pickSeat} />
           <Motes />
           <Suspense fallback={null}>
@@ -409,10 +468,20 @@ export default function Experience() {
         seat={seat}
         hovered={phase === "inside" ? hovered || focused : null}
         chapterId={chapterId}
-        onOpen={openDoors}
-        onSkip={skip}
+        onOpen={() => beginEntry("hall")}
+        onSkip={() => beginEntry("direct")}
         onStand={stand}
-        onRoom={enterRoom}
+        onRoom={() => beginEntry("room")}
+        student={student}
+        onSignOut={() => {
+          setStudent(null)
+          try {
+            window.localStorage.removeItem("camilia-student")
+          } catch {
+            // Signing out still clears the visit.
+          }
+          if (academyReady) fetch("/api/academy/logout", { method: "POST" }).catch(() => {})
+        }}
         onLeaveRoom={leaveRoom}
         onLeaveHall={leaveHall}
         onSelect={openChapter}
@@ -420,6 +489,20 @@ export default function Experience() {
         muted={muted}
         onToggleSound={toggleSound}
       />
+      {gate && (
+        <Enrollment
+          configured={academyReady}
+          onClose={() => setGate(null)}
+          onEnrolled={(next) => {
+            setStudent(next)
+            const action = gate
+            setGate(null)
+            if (action === "hall") openDoors()
+            else if (action === "direct") skip()
+            else enterRoom()
+          }}
+        />
+      )}
       <ComputerDesktop open={phase === "computer"} onLeave={closeComputer} />
       <WardrobePanel
         open={phase === "wardrobe"}

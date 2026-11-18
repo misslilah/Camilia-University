@@ -27,9 +27,12 @@ CREATE TABLE IF NOT EXISTS patreon_media (
   duration double precision,
   tier_title text NOT NULL,
   tier_cents integer,
-  bytes bytea NOT NULL,
+  bytes bytea,
+  storage_path text,
   added_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE patreon_media ADD COLUMN IF NOT EXISTS storage_path text;
+ALTER TABLE patreon_media ALTER COLUMN bytes DROP NOT NULL;
 `
 
 let schema: Promise<void> | null = null

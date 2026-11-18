@@ -1,6 +1,7 @@
 import { randomBytes, timingSafeEqual } from "crypto"
 import { NextResponse, type NextRequest } from "next/server"
 import { dbQuery, databaseUrl, logDatabaseError } from "@/lib/db"
+import { deleteObject, downloadObject, mediaPath, supabaseConfig, uploadObject } from "@/lib/supabase"
 import {
   entitledTo,
   sampleLibrary,
@@ -709,14 +710,22 @@ export async function uploadMedia(request: NextRequest) {
   const bytes = Buffer.from(await file.arrayBuffer())
   if (bytes.length > MAX_UPLOAD_BYTES) return apiJson({ error: tooLargeMessage(name) }, 413)
   const id = crypto.randomUUID()
+  const path = supabaseConfig() ? mediaPath(id) : null
+  if (path && !(await uploadObject(path, bytes, mime))) {
+    return apiJson({ error: `"${name}" could not be saved.` }, 503)
+  }
   try {
     const inserted = await dbQuery(
-      `INSERT INTO patreon_media (id, kind, name, mime, size, duration, tier_title, tier_cents, bytes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [id, kind, name, mime, bytes.length, duration, tierTitle, tierCents, bytes],
+      `INSERT INTO patreon_media (id, kind, name, mime, size, duration, tier_title, tier_cents, bytes, storage_path)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [id, kind, name, mime, bytes.length, duration, tierTitle, tierCents, path ? null : bytes, path],
     )
-    if (!inserted) return apiJson({ error: "The library could not be opened." }, 503)
+    if (!inserted) {
+      if (path) await deleteObject(path)
+      return apiJson({ error: "The library could not be opened." }, 503)
+    }
   } catch (error) {
+    if (path) await deleteObject(path)
     logDatabaseError(error)
     return apiJson({ error: `"${name}" could not be saved.` }, 500)
   }
@@ -731,9 +740,13 @@ export async function removeMedia(request: NextRequest, id: string) {
   if (loaded.kind === "database") return apiJson({ error: "The library could not be opened." }, 503)
   if (loaded.kind !== "session" || !loaded.session.isAdmin) return apiJson({ error: "Only the creator can delete a file." }, 403)
   try {
+    const existing = await dbQuery<{ storage_path: string | null }>("SELECT storage_path FROM patreon_media WHERE id = $1", [id])
+    if (!existing) return apiJson({ error: "The library could not be opened." }, 503)
+    const path = existing.rows[0]?.storage_path
     const result = await dbQuery("DELETE FROM patreon_media WHERE id = $1", [id])
     if (!result) return apiJson({ error: "The library could not be opened." }, 503)
     if (result.rowCount === 0) return apiJson({ error: "That file was not found." }, 404)
+    if (path) await deleteObject(path)
   } catch (error) {
     logDatabaseError(error)
     return apiJson({ error: "That file could not be deleted." }, 500)
@@ -757,11 +770,11 @@ export async function streamMedia(request: NextRequest, id: string) {
   const loaded = await currentSession(request, false)
   if (loaded.kind === "database") return apiJson({ error: "The library could not be opened." }, 503)
   if (loaded.kind !== "session") return apiJson({ error: "Connect with Patreon to play this file." }, 401)
-  type ByteRow = MediaRow & { bytes: Buffer }
+  type ByteRow = MediaRow & { bytes: Buffer | null; storage_path: string | null }
   let row: ByteRow | undefined
   try {
     const result = await dbQuery<ByteRow>(
-      `SELECT id, kind, name, mime, size, duration, tier_title, tier_cents, added_at, bytes FROM patreon_media WHERE id = $1`,
+      `SELECT id, kind, name, mime, size, duration, tier_title, tier_cents, added_at, bytes, storage_path FROM patreon_media WHERE id = $1`,
       [id],
     )
     row = result?.rows[0]
@@ -773,7 +786,21 @@ export async function streamMedia(request: NextRequest, id: string) {
   if (!row) return apiJson({ error: "That file was not found." }, 404)
   const kind: MediaKind = row.kind === "audio" ? "audio" : "video"
   if (!canStream(loaded.session, row.tier_title, row.tier_cents)) return apiJson({ error: "This file is not included in your tier." }, 403)
-  const bytes = Buffer.isBuffer(row.bytes) ? row.bytes : Buffer.from(row.bytes)
+  if (row.storage_path) {
+    const file = await downloadObject(row.storage_path, request.headers.get("range"))
+    if (!file) return apiJson({ error: "That file could not be opened." }, 503)
+    const headers = new Headers({
+      "Content-Type": safeMime(row.mime, kind),
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Disposition": `inline; filename="${downloadName(row.name)}"`,
+      "Content-Length": String(file.bytes.length),
+    })
+    if (file.contentRange) headers.set("Content-Range", file.contentRange)
+    return new NextResponse(new Uint8Array(file.bytes), { status: file.status === 206 ? 206 : 200, headers })
+  }
+  const bytes = Buffer.isBuffer(row.bytes) ? row.bytes : Buffer.from(row.bytes ?? [])
   const total = bytes.length
   const headers = new Headers({
     "Content-Type": safeMime(row.mime, kind),

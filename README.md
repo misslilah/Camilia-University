@@ -4,9 +4,10 @@ The Camilia University reception. Push open the doors of a lecture hall, choose 
 
 ## Using the hall
 
-1. Open the doors, or enter directly.
-2. Click a chair. The arrow keys move the selection, and Enter confirms it.
-3. Once seated, click a title on the board. Keys 1 to 4 open the chapters. Escape steps back, then stands you up. Standing in the hall, Back to the hallway (or Escape) fades to black and returns you outside the doors.
+1. Click a door. Enroll at the academy, or sign in. Until Supabase is connected, the record stays in this browser. With Supabase, the same form creates a student account and the character is kept for the next visit.
+2. Open the doors, or enter directly.
+3. Click a chair. The arrow keys move the selection, and Enter confirms it.
+4. Once seated, click a title on the board. Keys 1 to 4 open the chapters. Escape steps back, then stands you up. Standing in the hall, Back to the hallway (or Escape) fades to black and returns you outside the doors.
 
 The chapters: courses, examinations, academic records, and study materials.
 
@@ -20,7 +21,7 @@ The first time, you create your character: choose Men or Women, then set the hei
 
 After that, the wardrobe panel (on the right, or at the bottom on a phone) is for getting dressed. Pick one item per category by clicking it: Underwear (always worn: boxer briefs for Men, a briefs and bralette set for Women, in a few plain colours), Tops, Pants and Shoes. Tops, Pants and Shoes also have None, so the character can stand in underwear. Items are fixed and not customisable. A new character starts in a grey T-shirt, dark jeans and white sneakers (Men) or a white T-shirt, blue jeans and white sneakers (Women). Bodies are smooth, mannequin-like figures with no anatomical detail.
 
-Every change shows in the mirror straight away. Drag on the scene, use the turn buttons, or press the arrow keys to turn the character. Done, Back to the room, or Escape closes the wardrobe. The character and outfit are saved in this browser.
+Every change shows in the mirror straight away. Drag on the scene, use the turn buttons, or press the arrow keys to turn the character. Done, Back to the room, or Escape closes the wardrobe. The character and outfit are saved in this browser, and on the student record when Supabase is connected. Create those three values in the Supabase project settings: the project URL, the anon key, and the service role key. In Authentication, turn off Confirm email if students should enter as soon as they enroll.
 
 ### The computer
 
@@ -30,7 +31,7 @@ The desktop shows the Camilia wallpaper and six icons: My Files, Courses, Browse
 
 Patreon is the creator's library. Its icon is an original coral rounded tile with a white capital P, and the name Patreon is plain text under it. The window has a Video tab and an Audio tab, pills, and cards. Connect with Patreon opens the visitor's own Patreon account (scopes `identity` and `identity.memberships`) and returns to `/api/patreon/callback`. The server keeps the refresh token, and each visit refreshes the membership so the tier stays current. The creator of the campaign is the admin: the window shows an Admin chip, and only they can upload or delete. Everyone else is a subscriber.
 
-An upload is limited to 24 MB. The admin assigns a tier, using the campaign's tier titles when Patreon returns them, or by typing the title so it matches Patreon exactly. An optional amount in cents records the order: an active patron can play a file when that tier is one of their currently entitled tiers on this campaign, or when their tier amount is at least the file's amount. A file outside the tier is listed as locked and is not streamed. With no active membership the window stays open, with a short explanation, and paid files stay hidden. The creator's files are stored in the app's Postgres database, so every subscriber sees the same library.
+An upload is limited to 24 MB. The admin assigns a tier, using the campaign's tier titles when Patreon returns them, or by typing the title so it matches Patreon exactly. An optional amount in cents records the order: an active patron can play a file when that tier is one of their currently entitled tiers on this campaign, or when their tier amount is at least the file's amount. A file outside the tier is listed as locked and is not streamed. With no active membership the window stays open, with a short explanation, and paid files stay hidden. The creator's files are stored in Supabase Storage when `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are set, and the catalogue stays in the app's Postgres database. Without Supabase, the file itself is stored in Postgres. Every subscriber sees the same library.
 
 Until `PATREON_CLIENT_ID`, `PATREON_CLIENT_SECRET`, and `PATREON_CAMPAIGN_ID` are set, the connect button explains that Patreon is not configured yet and the library shows labeled sample files. There is no stand-in login. Register both of these redirect URIs on the Patreon client:
 
