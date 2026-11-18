@@ -36,6 +36,8 @@ An upload is limited to 2 GB. The file is sent directly to Supabase Storage in 6
 Until `PATREON_CLIENT_ID`, `PATREON_CLIENT_SECRET`, and `PATREON_CAMPAIGN_ID` are set, the connect button explains that Patreon is not configured yet and the library shows labeled sample files. There is no stand-in login. Register these redirect URIs on the Patreon client:
 
 - `http://127.0.0.1:3847/api/patreon/callback`
+- `https://camilia-university.pro/api/patreon/callback`
+- `https://www.camilia-university.pro/api/patreon/callback`
 - `https://camilia-university.apps.grok.bot/api/patreon/callback`
 - `https://camilia-university-misslilahs-projects.vercel.app/api/patreon/callback`
 

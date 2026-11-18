@@ -112,6 +112,8 @@ export function patreonConfig(): Config | null {
 // internal deployment hosts are ignored; the request must arrive on one of
 // these public addresses, or on the address in APP_ORIGIN.
 const PUBLIC_ORIGINS = [
+  "https://camilia-university.pro",
+  "https://www.camilia-university.pro",
   "https://camilia-university.apps.grok.bot",
   "https://camilia-university-misslilahs-projects.vercel.app",
 ]
