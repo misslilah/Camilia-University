@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react"
-import { MAX_UPLOAD_BYTES, sampleLibrary, tooLargeMessage, type LibraryItem, type LibraryStatus, type MediaKind } from "@/lib/patreon-access"
+import { MAX_UPLOAD_BYTES, sampleLibrary, tierById, tooLargeMessage, type LibraryItem, type LibraryStatus, type MediaKind } from "@/lib/patreon-access"
 
 export type { LibraryItem, LibraryStatus, MediaKind }
 
@@ -138,24 +138,19 @@ async function errorMessage(response: Response, fallback: string) {
   return fallback
 }
 
-export function uploadFiles(kind: MediaKind, files: File[], tierTitle: string, tierCents: string) {
+export function uploadFiles(kind: MediaKind, files: File[], tierId: string) {
   return enqueue(async () => {
     await ensureLoaded()
     state = { ...state, error: null }
     emit()
-    const title = tierTitle.trim()
+    const tier = tierById(state.tiers ?? [], tierId)
     if (!state.admin) {
       state = { ...state, error: "Only the creator can upload a file." }
       emit()
       return state.error
     }
-    if (!title) {
-      state = { ...state, error: "Enter the Patreon tier title. It has to match the tier name exactly." }
-      emit()
-      return state.error
-    }
-    if (tierCents.trim() && !/^\d{1,8}$/.test(tierCents.trim())) {
-      state = { ...state, error: "Enter the tier amount in cents, or leave it blank." }
+    if (!tier) {
+      state = { ...state, error: "Choose the tier that can play this file." }
       emit()
       return state.error
     }
@@ -184,8 +179,7 @@ export function uploadFiles(kind: MediaKind, files: File[], tierTitle: string, t
       }
       const body = new FormData()
       body.set("kind", kind)
-      body.set("tierTitle", title)
-      if (tierCents.trim()) body.set("tierCents", tierCents.trim())
+      body.set("tierId", tier.id)
       if (duration != null) body.set("duration", String(duration))
       body.set("file", file, name)
       try {

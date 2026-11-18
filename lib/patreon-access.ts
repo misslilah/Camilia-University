@@ -7,6 +7,7 @@ export type EntitledTier = {
 }
 
 export type CampaignTier = {
+  id: string
   title: string
   amountCents: number | null
 }
@@ -117,4 +118,17 @@ export function tierLabel(tiers: EntitledTier[]) {
   const titles = tiers.map((tier) => tier.title.trim()).filter((title) => title.length > 0)
   const unique = [...new Set(titles)]
   return unique.length > 0 ? unique.join(", ") : null
+}
+
+export function tierById(tiers: CampaignTier[], id: string) {
+  const key = id.trim()
+  if (!key) return null
+  return tiers.find((tier) => tier.id === key) ?? null
+}
+
+export function tierOptionLabel(tier: CampaignTier) {
+  if (tier.amountCents == null) return tier.title
+  const major = Math.trunc(tier.amountCents / 100)
+  const minor = String(Math.abs(tier.amountCents % 100)).padStart(2, "0")
+  return `${tier.title} · ${major}.${minor}`
 }

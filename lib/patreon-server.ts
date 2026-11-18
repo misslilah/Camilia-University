@@ -5,6 +5,7 @@ import { deleteObject, downloadObject, mediaPath, supabaseConfig, uploadObject }
 import {
   entitledTo,
   sampleLibrary,
+  tierById,
   tierLabel,
   tooLargeMessage,
   MAX_UPLOAD_BYTES,
@@ -19,6 +20,7 @@ const SESSION_COOKIE = "camilia_patreon"
 const STATE_COOKIE = "camilia_patreon_state"
 const USER_AGENT = "CamiliaUniversity/1.0"
 const TOKEN_URL = "https://www.patreon.com/api/oauth2/token"
+const OAUTH_SCOPES = "identity identity.memberships campaigns"
 const HOST_RE = /^[a-z0-9.-]+(?::\d{1,5})?$/i
 const SESSION_ID = /^[a-f0-9]{64}$/
 const MEDIA_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -352,6 +354,17 @@ async function loadIdentity(accessToken: string, campaignId: string) {
   return parseIdentity(await readJson(response), campaignId)
 }
 
+function tiersOf(campaign: Resource, included: Map<string, Resource>): CampaignTier[] {
+  const tiers = relMany(campaign, "tiers").flatMap((tierId) => {
+    const tier = included.get(`tier:${tierId}`)
+    const title = typeof tier?.attributes?.title === "string" ? tier.attributes.title.trim() : ""
+    if (!title) return []
+    return [{ id: tierId, title, amountCents: tier ? amountCents(tier) : null }]
+  })
+  tiers.sort((a, b) => (a.amountCents ?? 0) - (b.amountCents ?? 0) || a.title.localeCompare(b.title))
+  return tiers
+}
+
 async function loadCampaign(accessToken: string, campaignId: string) {
   const url = new URL(`https://www.patreon.com/api/oauth2/v2/campaigns/${encodeURIComponent(campaignId)}`)
   url.searchParams.set("include", "tiers,creator")
@@ -366,19 +379,44 @@ async function loadCampaign(accessToken: string, campaignId: string) {
   const data = asResource(body && typeof body === "object" ? (body as { data?: unknown }).data : null)
   if (!data) return null
   const included = includedMap(body)
-  const creatorId = relOne(data, "creator")
-  const tiers = relMany(data, "tiers").flatMap((tierId) => {
-    const tier = included.get(`tier:${tierId}`)
-    const title = typeof tier?.attributes?.title === "string" ? tier.attributes.title.trim() : ""
-    if (!title) return []
-    return [{ title, amountCents: tier ? amountCents(tier) : null }]
-  })
-  tiers.sort((a, b) => (a.amountCents ?? 0) - (b.amountCents ?? 0) || a.title.localeCompare(b.title))
-  return { creatorId, tiers }
+  return { creatorId: relOne(data, "creator"), tiers: tiersOf(data, included) }
 }
 
-function decideAdmin(identity: Identity, campaignId: string, creatorId: string | null) {
-  if (creatorId) return creatorId === identity.userId
+type CreatorAccess = { owns: boolean; tiers: CampaignTier[] }
+
+async function loadCreatorAccess(accessToken: string, campaignId: string, userId: string): Promise<CreatorAccess | null> {
+  const url = new URL("https://www.patreon.com/api/oauth2/v2/campaigns")
+  url.searchParams.set("include", "tiers,creator")
+  url.searchParams.set("fields[tier]", "title,amount_cents")
+  url.searchParams.set("fields[user]", "full_name")
+  const response = await patreonGet(url.toString(), accessToken)
+  if (!response.ok) {
+    console.error("patreon campaigns failed", response.status)
+    const single = await loadCampaign(accessToken, campaignId).catch(() => null)
+    if (!single?.creatorId) return null
+    return { owns: single.creatorId === userId, tiers: single.tiers }
+  }
+  const body = await readJson(response)
+  const data = body && typeof body === "object" ? (body as { data?: unknown }).data : null
+  const included = includedMap(body)
+  const list = Array.isArray(data) ? data : []
+  for (const item of list) {
+    const campaign = asResource(item)
+    if (!campaign?.id || campaign.id !== campaignId) continue
+    const creatorId = relOne(campaign, "creator")
+    const owns = creatorId ? creatorId === userId : true
+    let tiers = tiersOf(campaign, included)
+    if (owns && tiers.length === 0) {
+      const single = await loadCampaign(accessToken, campaignId).catch(() => null)
+      if (single?.creatorId === userId && single.tiers.length > 0) tiers = single.tiers
+    }
+    return { owns, tiers }
+  }
+  return { owns: false, tiers: [] }
+}
+
+function decideAdmin(identity: Identity, campaignId: string, access: CreatorAccess | null) {
+  if (access) return access.owns
   return identity.campaignId === campaignId
 }
 
@@ -429,8 +467,8 @@ async function readSession(id: string) {
 async function applyMembership(session: StoredSession, config: Config, token: TokenBundle) {
   const identity = await loadIdentity(token.accessToken, config.campaignId)
   if (!identity || identity.userId !== session.patreonUserId) return null
-  const campaign = await loadCampaign(token.accessToken, config.campaignId).catch(() => null)
-  const admin = decideAdmin(identity, config.campaignId, campaign?.creatorId ?? null)
+  const access = await loadCreatorAccess(token.accessToken, config.campaignId, identity.userId).catch(() => null)
+  const admin = decideAdmin(identity, config.campaignId, access)
   return updateSession(session, identity, token, admin)
 }
 
@@ -564,8 +602,8 @@ export async function libraryStatus(request: NextRequest) {
   const active = loaded.session.patronStatus === "active_patron"
   let tiers: CampaignTier[] | null = null
   if (loaded.session.isAdmin) {
-    const campaign = await loadCampaign(loaded.session.accessToken, loaded.config.campaignId).catch(() => null)
-    tiers = campaign ? campaign.tiers : null
+    const access = await loadCreatorAccess(loaded.session.accessToken, loaded.config.campaignId, loaded.session.patreonUserId).catch(() => null)
+    tiers = access?.owns ? access.tiers : null
   }
   const notice = loaded.session.isAdmin || active ? null : "No active membership on this campaign. Paid files stay hidden."
   const body: LibraryStatus = {
@@ -590,7 +628,7 @@ export function beginLogin(request: NextRequest) {
   authorize.searchParams.set("response_type", "code")
   authorize.searchParams.set("client_id", config.clientId)
   authorize.searchParams.set("redirect_uri", oauthRedirectUri(request))
-  authorize.searchParams.set("scope", "identity identity.memberships")
+  authorize.searchParams.set("scope", OAUTH_SCOPES)
   authorize.searchParams.set("state", state)
   return redirectTo(request, authorize.toString(), [{ name: STATE_COOKIE, value: state, maxAge: 600 }])
 }
@@ -610,8 +648,8 @@ export async function finishLogin(request: NextRequest) {
   if (!token) return redirectTo(request, "/?patreon=error&reason=token", [clearState])
   const identity = await loadIdentity(token.accessToken, config.campaignId)
   if (!identity) return redirectTo(request, "/?patreon=error&reason=identity", [clearState])
-  const campaign = await loadCampaign(token.accessToken, config.campaignId).catch(() => null)
-  const admin = decideAdmin(identity, config.campaignId, campaign?.creatorId ?? null)
+  const access = await loadCreatorAccess(token.accessToken, config.campaignId, identity.userId).catch(() => null)
+  const admin = decideAdmin(identity, config.campaignId, access)
   const id = randomBytes(32).toString("hex")
   try {
     await dbQuery("DELETE FROM patreon_session WHERE patreon_user_id = $1", [identity.userId])
@@ -706,16 +744,13 @@ export async function uploadMedia(request: NextRequest) {
   const kindValue = form.get("kind")
   const kind: MediaKind | null = kindValue === "audio" || kindValue === "video" ? kindValue : null
   if (!kind) return apiJson({ error: "Choose audio or video." }, 400)
-  const tierField = form.get("tierTitle")
-  const tierTitle = typeof tierField === "string" ? tierField.trim().slice(0, 80) : ""
-  if (!tierTitle) return apiJson({ error: "Enter the Patreon tier title. It has to match the tier name exactly." }, 400)
-  const centsField = form.get("tierCents")
-  const centsRaw = typeof centsField === "string" ? centsField.trim() : ""
-  let tierCents: number | null = null
-  if (centsRaw) {
-    if (!/^\d{1,8}$/.test(centsRaw)) return apiJson({ error: "Enter the tier amount in cents, or leave it blank." }, 400)
-    tierCents = Number(centsRaw)
-  }
+  const access = await loadCreatorAccess(loaded.session.accessToken, loaded.config.campaignId, loaded.session.patreonUserId).catch(() => null)
+  if (!access?.owns) return apiJson({ error: "Only the creator can upload a file." }, 403)
+  const tierField = form.get("tierId")
+  const tier = tierById(access.tiers, typeof tierField === "string" ? tierField : "")
+  if (!tier) return apiJson({ error: "Choose one of your Patreon tiers." }, 400)
+  const tierTitle = tier.title
+  const tierCents = tier.amountCents
   const durationField = form.get("duration")
   const durationRaw = typeof durationField === "string" ? durationField.trim() : ""
   let duration: number | null = null

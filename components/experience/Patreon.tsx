@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Trash2, Upload } from "lucide-react"
 import { clearLibraryError, deleteMedia, disconnectPatreon, uploadFiles, useLibrary, type MediaKind } from "@/lib/patreon"
+import { tierOptionLabel } from "@/lib/patreon-access"
 import { cn } from "@/lib/utils"
 
 export function PatreonMark({ className }: { className?: string; strokeWidth?: number }) {
@@ -64,11 +65,10 @@ export function Patreon() {
   const library = useLibrary()
   const [tab, setTab] = useState<MediaKind>("video")
   const [busy, setBusy] = useState(false)
-  const [tierTitle, setTierTitle] = useState("")
-  const [tierCents, setTierCents] = useState("")
+  const [tierId, setTierId] = useState("")
   const listed = library.items.filter((item) => item.kind === tab)
   const knownTiers = library.tiers ?? []
-  const pickTier = knownTiers.length > 0
+  const selectedTier = knownTiers.find((tier) => tier.id === tierId) ?? null
 
   const choose = (next: MediaKind) => {
     if (next === tab) return
@@ -80,7 +80,7 @@ export function Patreon() {
     if (!library.ready || files.length === 0) return
     setBusy(true)
     try {
-      await uploadFiles(tab, files, tierTitle, tierCents)
+      await uploadFiles(tab, files, tierId)
     } finally {
       setBusy(false)
     }
@@ -146,50 +146,29 @@ export function Patreon() {
               </button>
             ))}
           </div>
-          {library.admin && (
+        </div>
+      </div>
+      {library.admin && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 px-5 pb-3">
+          {knownTiers.length > 0 ? (
             <>
-              {pickTier ? (
-                <select
-                  aria-label="Tier"
-                  value={knownTiers.some((tier) => tier.title === tierTitle) ? tierTitle : ""}
-                  onChange={(event) => {
-                    const title = event.target.value
-                    setTierTitle(title)
-                    const match = knownTiers.find((tier) => tier.title === title)
-                    setTierCents(match?.amountCents != null ? String(match.amountCents) : "")
-                  }}
-                  className="h-8 rounded-full bg-white px-3 text-[13px] font-semibold text-[#5c2144] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
-                >
-                  <option value="">Tier</option>
-                  {knownTiers.map((tier) => (
-                    <option key={`${tier.title}-${tier.amountCents ?? "x"}`} value={tier.title}>
-                      {tier.title}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <>
-                  <input
-                    aria-label="Tier title"
-                    value={tierTitle}
-                    placeholder="Tier title"
-                    onChange={(event) => setTierTitle(event.target.value)}
-                    className="h-8 w-36 rounded-full bg-white px-3 text-[13px] text-[#5c2144] placeholder:text-[#b45b82] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
-                  />
-                  <input
-                    aria-label="Tier amount in cents"
-                    value={tierCents}
-                    inputMode="numeric"
-                    placeholder="Cents"
-                    onChange={(event) => setTierCents(event.target.value.replace(/[^\d]/g, "").slice(0, 8))}
-                    className="h-8 w-20 rounded-full bg-white px-3 text-[13px] text-[#5c2144] placeholder:text-[#b45b82] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
-                  />
-                </>
-              )}
+              <select
+                aria-label="Tier that can play this file"
+                value={selectedTier ? selectedTier.id : ""}
+                onChange={(event) => setTierId(event.target.value)}
+                className="h-8 max-w-full rounded-full bg-white px-3 text-[13px] font-semibold text-[#5c2144] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+              >
+                <option value="">Choose a tier</option>
+                {knownTiers.map((tier) => (
+                  <option key={tier.id} value={tier.id}>
+                    {tierOptionLabel(tier)}
+                  </option>
+                ))}
+              </select>
               <label
                 className={cn(
                   "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-[#c72d6e] px-4 text-[13px] font-semibold text-white hover:bg-[#b02562]",
-                  (!library.ready || busy) && "pointer-events-none opacity-60",
+                  (!library.ready || busy || !selectedTier) && "pointer-events-none opacity-60",
                 )}
               >
                 <Upload className="h-3.5 w-3.5" />
@@ -199,7 +178,7 @@ export function Patreon() {
                   type="file"
                   accept={tab === "audio" ? "audio/*" : "video/*"}
                   multiple
-                  disabled={!library.ready || busy}
+                  disabled={!library.ready || busy || !selectedTier}
                   className="sr-only"
                   onChange={(event) => {
                     const input = event.currentTarget
@@ -209,11 +188,17 @@ export function Patreon() {
                   }}
                 />
               </label>
-              <span className="text-[12px] font-medium text-white/90">24 MB max</span>
+              <span className="text-[12px] font-medium text-white/90">24 MB max. This tier and any higher tier can play it.</span>
             </>
+          ) : (
+            <p className="text-[12px] font-medium text-white">
+              {library.tiers
+                ? "This campaign has no tiers yet. Add one on Patreon, then connect again."
+                : "Disconnect, then connect again to load your tiers."}
+            </p>
           )}
         </div>
-      </div>
+      )}
 
       {library.error && (
         <p role="alert" className="mx-5 mb-3 rounded-[16px] bg-[#fff0f5] px-4 py-2 text-sm text-[#8d2b2b]">
