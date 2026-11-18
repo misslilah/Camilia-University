@@ -684,7 +684,7 @@ export async function libraryStatus(request: NextRequest) {
       admin: false,
       name: null,
       tierTitle: null,
-      notice: "The library database could not be reached.",
+      notice: supabaseConfig() ? "Supabase storage could not be opened." : "Supabase is not configured on this server.",
       tiers: null,
       items: [],
     } satisfies LibraryStatus)
@@ -704,7 +704,7 @@ export async function libraryStatus(request: NextRequest) {
       admin: loaded.session.isAdmin,
       name: loaded.session.fullName,
       tierTitle: loaded.session.tierTitle,
-      notice: "The library database could not be reached.",
+      notice: "Supabase storage could not be opened.",
       tiers: null,
       items: [],
     } satisfies LibraryStatus)

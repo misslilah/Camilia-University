@@ -36,7 +36,7 @@ const OAUTH_ERRORS: Record<string, string> = {
   state: "The Patreon connection could not be confirmed. Try again.",
   token: "Patreon did not accept the connection. Try again.",
   identity: "Patreon did not return your membership. Try again.",
-  database: "The library could not be opened.",
+  database: "Supabase is not configured on this server.",
 }
 
 function takeOauthError() {

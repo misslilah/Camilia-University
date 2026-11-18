@@ -15,10 +15,18 @@ export type AuthSession = {
   email: string
 }
 
+function envValue(...names: string[]) {
+  for (const name of names) {
+    const value = process.env[name]?.trim().replace(/^["']|["']$/g, "") ?? ""
+    if (value) return value
+  }
+  return ""
+}
+
 export function supabaseConfig(): SupabaseConfig | null {
-  const url = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "") ?? ""
-  const anonKey = process.env.SUPABASE_ANON_KEY?.trim() ?? ""
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? ""
+  const url = envValue("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL").replace(/\/+$/, "")
+  const anonKey = envValue("SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY")
+  const serviceKey = envValue("SUPABASE_SERVICE_ROLE_KEY")
   if (!url || !anonKey || !serviceKey) return null
   if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url)) return null
   return { url, anonKey, serviceKey }

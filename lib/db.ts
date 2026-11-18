@@ -39,7 +39,7 @@ const SCHEMA = [
 let schema: Promise<void> | null = null
 
 function connectionString() {
-  const value = process.env.DATABASE_URL?.trim() ?? ""
+  const value = (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING || "").trim()
   return value.length > 0 ? value : null
 }
 
