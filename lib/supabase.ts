@@ -1,4 +1,7 @@
-// Server-only Supabase client. The anon key and service role never reach the browser.
+import { MAX_UPLOAD_BYTES } from "@/lib/patreon-access"
+
+// Server-only Supabase client. The service role never reaches the browser.
+// A direct upload receives only a short-lived signature and the anon key.
 
 const BUCKET = "academy"
 
@@ -139,6 +142,81 @@ export function ensureBucket() {
   return bucketReady
 }
 
+async function allowLargeFiles() {
+  const ready = serviceHeaders("application/json")
+  if (!ready) return
+  await fetch(`${ready.config.url}/storage/v1/bucket/${BUCKET}`, {
+    method: "PUT",
+    headers: ready.headers,
+    body: JSON.stringify({ public: false, file_size_limit: MAX_UPLOAD_BYTES }),
+  }).catch(() => undefined)
+}
+
+export type DirectUpload = {
+  token: string
+  endpoint: string
+  bucket: string
+  path: string
+  apikey: string
+}
+
+export async function signedUpload(path: string): Promise<DirectUpload | null> {
+  if (!(await ensureBucket())) return null
+  await allowLargeFiles()
+  const ready = serviceHeaders("application/json")
+  if (!ready) return null
+  const response = await fetch(`${ready.config.url}/storage/v1/object/upload/sign/${BUCKET}/${path}`, {
+    method: "POST",
+    headers: { ...ready.headers, "x-upsert": "true" },
+    body: "{}",
+  })
+  if (!response.ok) return null
+  const payload = (await response.json().catch(() => null)) as { url?: string; token?: string } | null
+  let token = payload?.token ?? ""
+  if (!token && payload?.url) {
+    try {
+      token = new URL(payload.url, ready.config.url).searchParams.get("token") ?? ""
+    } catch {
+      token = ""
+    }
+  }
+  if (!token) return null
+  const endpoint = `${ready.config.url.replace(".supabase.co", ".storage.supabase.co")}/storage/v1/upload/resumable`
+  return { token, endpoint, bucket: BUCKET, path, apikey: ready.config.anonKey }
+}
+
+export async function signedDownloadUrl(path: string, expiresIn: number) {
+  const ready = serviceHeaders("application/json")
+  if (!ready) return null
+  const response = await fetch(`${ready.config.url}/storage/v1/object/sign/${BUCKET}/${path}`, {
+    method: "POST",
+    headers: ready.headers,
+    body: JSON.stringify({ expiresIn }),
+  })
+  if (!response.ok) return null
+  const payload = (await response.json().catch(() => null)) as { signedURL?: string } | null
+  const signed = payload?.signedURL ?? ""
+  if (!signed.startsWith("/object/")) return null
+  return `${ready.config.url}/storage/v1${signed}`
+}
+
+export async function objectSize(path: string) {
+  const ready = serviceHeaders()
+  if (!ready) return null
+  const url = `${ready.config.url}/storage/v1/object/${BUCKET}/${path}`
+  const head = await fetch(url, { method: "HEAD", headers: ready.headers })
+  if (head.ok) {
+    const length = Number(head.headers.get("content-length"))
+    if (Number.isFinite(length) && length > 0) return length
+  }
+  const probe = await fetch(url, { headers: { ...ready.headers, Range: "bytes=0-0" } })
+  const range = probe.headers.get("content-range") ?? ""
+  await probe.body?.cancel().catch(() => undefined)
+  if (!probe.ok && probe.status !== 206) return null
+  const match = /\/(\d+)$/.exec(range)
+  return match ? Number(match[1]) : null
+}
+
 export async function uploadObject(path: string, body: Buffer, contentType: string) {
   if (!(await ensureBucket())) return false
   const ready = serviceHeaders(contentType)
@@ -159,7 +237,10 @@ export async function downloadObject(path: string, range: string | null) {
   if (range) headers.Range = range
   const response = await fetch(`${ready.config.url}/storage/v1/object/${BUCKET}/${path}`, { headers })
   if (!response.ok && response.status !== 206) return null
+  const length = Number(response.headers.get("content-length") ?? "0")
+  if (Number.isFinite(length) && length > 1024 * 1024) return null
   const bytes = Buffer.from(await response.arrayBuffer())
+  if (bytes.length > 1024 * 1024) return null
   return {
     bytes,
     status: response.status,

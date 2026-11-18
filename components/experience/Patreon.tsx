@@ -28,7 +28,8 @@ export function PatreonMark({ className }: { className?: string; strokeWidth?: n
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
 function formatDuration(seconds: number) {
@@ -172,7 +173,7 @@ export function Patreon() {
                 )}
               >
                 <Upload className="h-3.5 w-3.5" />
-                {busy ? "Saving…" : tab === "audio" ? "Upload audio" : "Upload video"}
+                {library.progress ?? (busy ? "Saving…" : tab === "audio" ? "Upload audio" : "Upload video")}
                 <input
                   key={tab}
                   type="file"
@@ -188,7 +189,7 @@ export function Patreon() {
                   }}
                 />
               </label>
-              <span className="text-[12px] font-medium text-white/90">24 MB max. This tier and any higher tier can play it.</span>
+              <span className="text-[12px] font-medium text-white/90">2 GB max. This tier and any higher tier can play it.</span>
             </>
           ) : (
             <p className="text-[12px] font-medium text-white">

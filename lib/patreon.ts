@@ -1,11 +1,11 @@
 import { useEffect, useSyncExternalStore } from "react"
-import { MAX_UPLOAD_BYTES, sampleLibrary, tierById, tooLargeMessage, type LibraryItem, type LibraryStatus, type MediaKind } from "@/lib/patreon-access"
+import { MAX_UPLOAD_BYTES, sampleLibrary, storageLimitMessage, tierById, tooLargeMessage, type LibraryItem, type LibraryStatus, type MediaKind } from "@/lib/patreon-access"
 
 export type { LibraryItem, LibraryStatus, MediaKind }
 
-type Snapshot = LibraryStatus & { ready: boolean; error: string | null }
+type Snapshot = LibraryStatus & { ready: boolean; error: string | null; progress: string | null }
 
-const EMPTY: Snapshot = { ...sampleLibrary(), ready: false, notice: null, items: [], error: null }
+const EMPTY: Snapshot = { ...sampleLibrary(), ready: false, notice: null, items: [], error: null, progress: null }
 
 let state: Snapshot = EMPTY
 let loading: Promise<void> | null = null
@@ -73,12 +73,12 @@ async function ensureLoaded() {
   if (!loading) {
     loading = readStatus()
       .then(({ status, error }) => {
-        state = { ...status, ready: true, error }
+        state = { ...status, ready: true, error, progress: null }
         emit()
       })
       .catch(() => {
         loading = null
-        state = { ...sampleLibrary(), items: [], ready: true, notice: "The library could not be opened.", error: null }
+        state = { ...sampleLibrary(), items: [], ready: true, notice: "The library could not be opened.", error: null, progress: null }
         emit()
       })
   }
@@ -138,6 +138,59 @@ async function errorMessage(response: Response, fallback: string) {
   return fallback
 }
 
+type UploadTicket = {
+  id: string
+  token: string
+  endpoint: string
+  bucket: string
+  path: string
+  apikey: string
+  mime: string
+}
+
+function isTicket(value: unknown): value is UploadTicket {
+  if (!value || typeof value !== "object") return false
+  const row = value as Partial<UploadTicket>
+  return [row.id, row.token, row.endpoint, row.bucket, row.path, row.apikey, row.mime].every((item) => typeof item === "string" && item.length > 0)
+}
+
+function uploadFailure(error: unknown) {
+  const text = error instanceof Error ? error.message : ""
+  if (/size|413|entity too large|maximum/i.test(text)) return storageLimitMessage()
+  return ""
+}
+
+function sendToStorage(file: File, ticket: UploadTicket, onProgress: (sent: number, total: number) => void) {
+  return import("tus-js-client").then(
+    ({ Upload }) =>
+      new Promise<void>((resolve, reject) => {
+        const upload = new Upload(file, {
+          endpoint: ticket.endpoint,
+          retryDelays: [0, 3000, 5000, 10000, 20000],
+          headers: {
+            authorization: `Bearer ${ticket.token}`,
+            "x-signature": ticket.token,
+            apikey: ticket.apikey,
+            "x-upsert": "true",
+          },
+          uploadDataDuringCreation: true,
+          removeFingerprintOnSuccess: true,
+          metadata: {
+            bucketName: ticket.bucket,
+            objectName: ticket.path,
+            contentType: ticket.mime,
+            cacheControl: "3600",
+          },
+          chunkSize: 6 * 1024 * 1024,
+          onError: (error) => reject(error),
+          onProgress: (sent, total) => onProgress(sent, total),
+          onSuccess: () => resolve(),
+        })
+        upload.start()
+      }),
+  )
+}
+
 export function uploadFiles(kind: MediaKind, files: File[], tierId: string) {
   return enqueue(async () => {
     await ensureLoaded()
@@ -171,26 +224,49 @@ export function uploadFiles(kind: MediaKind, files: File[], tierId: string) {
         continue
       }
       let duration: number | null = null
-      try {
-        duration = await probeDuration(file, kind, name)
-      } catch (error) {
-        first ??= error instanceof Error ? error.message : `"${name}" could not be read.`
-        continue
+      if (file.size <= 80 * 1024 * 1024) {
+        try {
+          duration = await probeDuration(file, kind, name)
+        } catch {
+          duration = null
+        }
       }
-      const body = new FormData()
-      body.set("kind", kind)
-      body.set("tierId", tier.id)
-      if (duration != null) body.set("duration", String(duration))
-      body.set("file", file, name)
       try {
-        const response = await fetch("/api/patreon/media", { method: "POST", body, credentials: "same-origin" })
-        if (!response.ok) first ??= await errorMessage(response, `"${name}" could not be saved.`)
-      } catch {
-        first ??= `"${name}" could not be saved.`
+        const prepared = await fetch("/api/patreon/media", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ step: "prepare", kind, tierId: tier.id, name, size: file.size, mime: file.type, duration }),
+        })
+        const ticket: unknown = await prepared.json().catch(() => null)
+        if (!prepared.ok || !isTicket(ticket)) {
+          const message = ticket && typeof ticket === "object" && "error" in ticket && typeof ticket.error === "string" ? ticket.error : ""
+          first ??= message || `"${name}" could not be saved.`
+          continue
+        }
+        let shown = -1
+        await sendToStorage(file, ticket, (sent, total) => {
+          const percent = total > 0 ? Math.min(100, Math.round((sent / total) * 100)) : 0
+          if (percent === shown) return
+          shown = percent
+          state = { ...state, progress: `Saving ${percent}%` }
+          emit()
+        })
+        const finished = await fetch("/api/patreon/media", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ step: "finish", id: ticket.id, kind, tierId: tier.id, name, size: file.size, mime: file.type, duration }),
+        })
+        if (!finished.ok) first ??= await errorMessage(finished, `"${name}" could not be saved.`)
+      } catch (error) {
+        first ??= uploadFailure(error) || `"${name}" could not be saved.`
       }
     }
     const fresh = await readStatus().catch(() => null)
-    state = fresh ? { ...fresh.status, ready: true, error: first ?? fresh.error } : { ...state, error: first ?? "The library could not be opened." }
+    state = fresh
+      ? { ...fresh.status, ready: true, error: first ?? fresh.error, progress: null }
+      : { ...state, error: first ?? "The library could not be opened.", progress: null }
     emit()
     return first
   })
@@ -208,7 +284,7 @@ export function deleteMedia(id: string) {
         return
       }
       const fresh = await readStatus()
-      state = { ...fresh.status, ready: true, error: fresh.error }
+      state = { ...fresh.status, ready: true, error: fresh.error, progress: null }
       emit()
     } catch {
       state = { ...state, error: "That file could not be deleted." }
@@ -234,8 +310,8 @@ export function disconnectPatreon() {
     }
     const fresh = await readStatus().catch(() => null)
     state = fresh
-      ? { ...fresh.status, ready: true, error: fresh.error }
-      : { ...state, connected: false, admin: false, tierTitle: null, items: [], error: null }
+      ? { ...fresh.status, ready: true, error: fresh.error, progress: null }
+      : { ...state, connected: false, admin: false, tierTitle: null, items: [], error: null, progress: null }
     emit()
   })
 }

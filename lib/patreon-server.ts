@@ -1,13 +1,14 @@
 import { randomBytes, timingSafeEqual } from "crypto"
 import { NextResponse, type NextRequest } from "next/server"
 import { dbQuery, databaseUrl, logDatabaseError } from "@/lib/db"
-import { deleteObject, downloadObject, mediaPath, supabaseConfig, uploadObject } from "@/lib/supabase"
+import { deleteObject, mediaPath, objectSize, signedDownloadUrl, signedUpload, supabaseConfig } from "@/lib/supabase"
 import {
   entitledTo,
   sampleLibrary,
   tierById,
   tierLabel,
   tooLargeMessage,
+  storageLimitMessage,
   MAX_UPLOAD_BYTES,
   type CampaignTier,
   type EntitledTier,
@@ -24,7 +25,7 @@ const OAUTH_SCOPES = "identity identity.memberships campaigns"
 const HOST_RE = /^[a-z0-9.-]+(?::\d{1,5})?$/i
 const SESSION_ID = /^[a-f0-9]{64}$/
 const MEDIA_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const MAX_BODY = 32 * 1024 * 1024
+const MAX_JSON_BODY = 64 * 1024
 
 const AUDIO_EXT = new Set(["wav", "mp3", "ogg", "m4a", "aac", "flac", "opus", "webm"])
 const VIDEO_EXT = new Set(["mp4", "webm", "mov", "m4v", "mkv", "ogg"])
@@ -686,8 +687,8 @@ export async function endLogin(request: NextRequest) {
   return response
 }
 
-function fileLabel(file: File, kind: MediaKind) {
-  const base = file.name.trim().split(/[/\\]/).pop()?.trim() ?? ""
+function cleanName(value: string, kind: MediaKind) {
+  const base = value.trim().split(/[/\\]/).pop()?.trim() ?? ""
   const name = base.replace(/[\u0000-\u001f]/g, "").slice(0, 180)
   return name || (kind === "audio" ? "Audio" : "Video")
 }
@@ -697,10 +698,10 @@ function extensionOf(name: string) {
   return ext === name.toLowerCase() ? "" : ext
 }
 
-function mimeFor(file: File, kind: MediaKind, name: string) {
-  const type = file.type.toLowerCase().split(";")[0]?.trim() ?? ""
-  if (type.startsWith(`${kind}/`)) return type
-  if (type && type !== "application/octet-stream") return ""
+function mimeFor(kind: MediaKind, name: string, type: string) {
+  const declared = type.toLowerCase().split(";")[0]?.trim() ?? ""
+  if (declared.startsWith(`${kind}/`)) return declared
+  if (declared && declared !== "application/octet-stream") return ""
   const ext = extensionOf(name)
   const known: Record<string, string> = {
     wav: "audio/wav",
@@ -727,67 +728,99 @@ function canStream(session: StoredSession, tierTitle: string, tierCents: number 
   return entitledTo({ tierTitle, tierCents }, session.entitled)
 }
 
+type UploadRequest = {
+  step: "prepare" | "finish"
+  id?: string
+  kind?: string
+  tierId?: string
+  name?: string
+  size?: number
+  mime?: string
+  duration?: number | null
+}
+
+function readUpload(value: unknown): UploadRequest | null {
+  if (!value || typeof value !== "object") return null
+  const row = value as Record<string, unknown>
+  const step = row.step === "prepare" || row.step === "finish" ? row.step : null
+  if (!step) return null
+  return {
+    step,
+    id: typeof row.id === "string" ? row.id : undefined,
+    kind: typeof row.kind === "string" ? row.kind : undefined,
+    tierId: typeof row.tierId === "string" ? row.tierId : undefined,
+    name: typeof row.name === "string" ? row.name : undefined,
+    size: typeof row.size === "number" ? row.size : undefined,
+    mime: typeof row.mime === "string" ? row.mime : undefined,
+    duration: typeof row.duration === "number" ? row.duration : row.duration === null ? null : undefined,
+  }
+}
+
+function mediaMeta(body: UploadRequest, tiers: CampaignTier[]) {
+  const kind: MediaKind | null = body.kind === "audio" || body.kind === "video" ? body.kind : null
+  if (!kind) return { error: "Choose audio or video." }
+  const tier = tierById(tiers, body.tierId ?? "")
+  if (!tier) return { error: "Choose one of your Patreon tiers." }
+  const name = cleanName(body.name ?? "", kind)
+  const size = body.size
+  if (typeof size !== "number" || !Number.isInteger(size) || size <= 0) return { error: `"${name}" is empty.` }
+  if (size > MAX_UPLOAD_BYTES) return { error: tooLargeMessage(name) }
+  const mime = mimeFor(kind, name, body.mime ?? "")
+  if (!mime) return { error: `"${name}" is not ${kind === "audio" ? "an audio file" : "a video file"}.` }
+  let duration: number | null = null
+  if (typeof body.duration === "number" && Number.isFinite(body.duration) && body.duration >= 0 && body.duration <= 24 * 60 * 60) {
+    duration = body.duration
+  }
+  return { kind, tier, name, size, mime, duration }
+}
+
 export async function uploadMedia(request: NextRequest) {
   if (crossSite(request)) return apiJson({ error: "The request was refused." }, 403)
   const length = Number(request.headers.get("content-length") ?? "0")
-  if (Number.isFinite(length) && length > MAX_BODY) return apiJson({ error: tooLargeMessage() }, 413)
+  if (Number.isFinite(length) && length > MAX_JSON_BODY) return apiJson({ error: tooLargeMessage() }, 413)
   if (!patreonConfig()) return apiJson({ error: "Patreon is not configured yet." }, 503)
+  if (!supabaseConfig()) return apiJson({ error: "File storage is not connected yet." }, 503)
   const loaded = await currentSession(request, false)
   if (loaded.kind === "database") return apiJson({ error: "The library could not be opened." }, 503)
   if (loaded.kind !== "session" || !loaded.session.isAdmin) return apiJson({ error: "Only the creator can upload a file." }, 403)
-  let form: FormData
-  try {
-    form = await request.formData()
-  } catch {
-    return apiJson({ error: tooLargeMessage("This file") }, 413)
-  }
-  const kindValue = form.get("kind")
-  const kind: MediaKind | null = kindValue === "audio" || kindValue === "video" ? kindValue : null
-  if (!kind) return apiJson({ error: "Choose audio or video." }, 400)
   const access = await loadCreatorAccess(loaded.session.accessToken, loaded.config.campaignId, loaded.session.patreonUserId).catch(() => null)
   if (!access?.owns) return apiJson({ error: "Only the creator can upload a file." }, 403)
-  const tierField = form.get("tierId")
-  const tier = tierById(access.tiers, typeof tierField === "string" ? tierField : "")
-  if (!tier) return apiJson({ error: "Choose one of your Patreon tiers." }, 400)
-  const tierTitle = tier.title
-  const tierCents = tier.amountCents
-  const durationField = form.get("duration")
-  const durationRaw = typeof durationField === "string" ? durationField.trim() : ""
-  let duration: number | null = null
-  if (durationRaw) {
-    const parsed = Number(durationRaw)
-    if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 24 * 60 * 60) duration = parsed
+  const body = readUpload(await request.json().catch(() => null))
+  if (!body) return apiJson({ error: "Choose a file to upload." }, 400)
+  const meta = mediaMeta(body, access.tiers)
+  if ("error" in meta) return apiJson({ error: meta.error }, 400)
+  if (body.step === "prepare") {
+    const id = crypto.randomUUID()
+    const ticket = await signedUpload(mediaPath(id))
+    if (!ticket) return apiJson({ error: `"${meta.name}" could not be saved.` }, 503)
+    return apiJson({ id, ...ticket, mime: meta.mime })
   }
-  const file = form.get("file")
-  if (!(file instanceof File)) return apiJson({ error: "Choose a file to upload." }, 400)
-  const name = fileLabel(file, kind)
-  if (file.size <= 0) return apiJson({ error: `"${name}" is empty.` }, 400)
-  if (file.size > MAX_UPLOAD_BYTES) return apiJson({ error: tooLargeMessage(name) }, 413)
-  const mime = mimeFor(file, kind, name)
-  if (!mime) return apiJson({ error: `"${name}" is not ${kind === "audio" ? "an audio file" : "a video file"}.` }, 400)
-  const bytes = Buffer.from(await file.arrayBuffer())
-  if (bytes.length > MAX_UPLOAD_BYTES) return apiJson({ error: tooLargeMessage(name) }, 413)
-  const id = crypto.randomUUID()
-  const path = supabaseConfig() ? mediaPath(id) : null
-  if (path && !(await uploadObject(path, bytes, mime))) {
-    return apiJson({ error: `"${name}" could not be saved.` }, 503)
+  if (!body.id || !MEDIA_ID.test(body.id)) return apiJson({ error: "Choose a file to upload." }, 400)
+  const path = mediaPath(body.id)
+  const stored = await objectSize(path)
+  if (stored == null || stored !== meta.size) {
+    if (stored != null) await deleteObject(path)
+    return apiJson({ error: stored != null && stored > MAX_UPLOAD_BYTES ? storageLimitMessage() : `"${meta.name}" could not be saved.` }, 503)
   }
   try {
     const inserted = await dbQuery(
       `INSERT INTO patreon_media (id, kind, name, mime, size, duration, tier_title, tier_cents, bytes, storage_path)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [id, kind, name, mime, bytes.length, duration, tierTitle, tierCents, path ? null : bytes, path],
+      [body.id, meta.kind, meta.name, meta.mime, meta.size, meta.duration, meta.tier.title, meta.tier.amountCents, null, path],
     )
     if (!inserted) {
-      if (path) await deleteObject(path)
+      await deleteObject(path)
       return apiJson({ error: "The library could not be opened." }, 503)
     }
   } catch (error) {
-    if (path) await deleteObject(path)
-    logDatabaseError(error)
-    return apiJson({ error: `"${name}" could not be saved.` }, 500)
+    const code = error && typeof error === "object" && "code" in error ? String((error as { code: unknown }).code) : ""
+    if (code !== "23505") {
+      await deleteObject(path)
+      logDatabaseError(error)
+      return apiJson({ error: `"${meta.name}" could not be saved.` }, 500)
+    }
   }
-  return apiJson({ id })
+  return apiJson({ id: body.id })
 }
 
 export async function removeMedia(request: NextRequest, id: string) {
@@ -845,18 +878,9 @@ export async function streamMedia(request: NextRequest, id: string) {
   const kind: MediaKind = row.kind === "audio" ? "audio" : "video"
   if (!canStream(loaded.session, row.tier_title, row.tier_cents)) return apiJson({ error: "This file is not included in your tier." }, 403)
   if (row.storage_path) {
-    const file = await downloadObject(row.storage_path, request.headers.get("range"))
-    if (!file) return apiJson({ error: "That file could not be opened." }, 503)
-    const headers = new Headers({
-      "Content-Type": safeMime(row.mime, kind),
-      "Accept-Ranges": "bytes",
-      "Cache-Control": "private, no-store",
-      "X-Content-Type-Options": "nosniff",
-      "Content-Disposition": `inline; filename="${downloadName(row.name)}"`,
-      "Content-Length": String(file.bytes.length),
-    })
-    if (file.contentRange) headers.set("Content-Range", file.contentRange)
-    return new NextResponse(new Uint8Array(file.bytes), { status: file.status === 206 ? 206 : 200, headers })
+    const signed = await signedDownloadUrl(row.storage_path, 6 * 60 * 60)
+    if (!signed) return apiJson({ error: "That file could not be opened." }, 503)
+    return NextResponse.redirect(signed, { status: 302, headers: { "Cache-Control": "private, no-store" } })
   }
   const bytes = Buffer.isBuffer(row.bytes) ? row.bytes : Buffer.from(row.bytes ?? [])
   const total = bytes.length

@@ -38,11 +38,15 @@ export type LibraryStatus = {
   items: LibraryItem[]
 }
 
-export const MAX_UPLOAD_BYTES = 24 * 1024 * 1024
+export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024
 
 export function tooLargeMessage(name?: string) {
-  if (!name) return "This file is larger than 24 MB. Choose a smaller file."
-  return `"${name}" is larger than 24 MB. Choose a smaller file.`
+  if (!name) return "This file is larger than 2 GB. Choose a smaller file."
+  return `"${name}" is larger than 2 GB. Choose a smaller file.`
+}
+
+export function storageLimitMessage() {
+  return "Supabase refused a file this large. Open Storage, then Settings, and set the global file size limit to 2 GB. On the Free plan the ceiling is 50 MB."
 }
 
 const SAMPLE_AT = Date.UTC(2026, 2, 1, 15, 0)

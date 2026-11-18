@@ -23,7 +23,7 @@ test("a different title without an amount stays closed", () => {
 
 test("tier titles stay in Patreon's wording", () => {
   assert.equal(tierLabel([listeners, studio]), "Listeners, Studio")
-  assert.equal(tooLargeMessage("clip.mp4"), `"clip.mp4" is larger than 24 MB. Choose a smaller file.`)
+  assert.equal(tooLargeMessage("clip.mp4"), `"clip.mp4" is larger than 2 GB. Choose a smaller file.`)
 })
 
 test("an upload can only name a tier returned for the creator", () => {
