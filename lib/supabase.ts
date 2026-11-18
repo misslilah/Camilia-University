@@ -83,6 +83,19 @@ export async function signIn(email: string, password: string) {
   return { session }
 }
 
+// The user id used for stored progress comes only from this check, never from the cookie.
+export async function verifyAccess(accessToken: string) {
+  const config = supabaseConfig()
+  if (!config || !accessToken) return null
+  const response = await fetch(`${config.url}/auth/v1/user`, {
+    headers: { apikey: config.anonKey, Authorization: `Bearer ${accessToken}` },
+  })
+  if (!response.ok) return null
+  const user = (await response.json().catch(() => null)) as { id?: string; email?: string } | null
+  if (!user?.id) return null
+  return { id: user.id, email: user.email ?? "" }
+}
+
 export async function refreshAuth(refreshToken: string) {
   const config = supabaseConfig()
   if (!config) return null

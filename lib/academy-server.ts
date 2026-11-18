@@ -8,6 +8,7 @@ import {
   signUp,
   supabaseConfig,
   uploadObject,
+  verifyAccess,
   type AuthSession,
 } from "@/lib/supabase"
 
@@ -64,10 +65,16 @@ async function current(request: NextRequest): Promise<StudentSession | null> {
   if (!raw) return null
   const session = decode(raw)
   if (!session) return null
-  if (session.expiresAt > Date.now() + 60_000) return session
-  const refreshed = await refreshAuth(session.refreshToken)
-  if (!refreshed) return null
-  return { ...refreshed, name: session.name, email: refreshed.email || session.email }
+  let active = session
+  let user = await verifyAccess(active.accessToken)
+  if (!user) {
+    const refreshed = await refreshAuth(active.refreshToken)
+    if (!refreshed) return null
+    user = await verifyAccess(refreshed.accessToken)
+    if (!user) return null
+    active = { ...refreshed, name: session.name, email: user.email || refreshed.email || session.email }
+  }
+  return { ...active, userId: user.id, email: user.email || active.email }
 }
 
 export async function academyStatus(request: NextRequest) {

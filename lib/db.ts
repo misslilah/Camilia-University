@@ -48,7 +48,7 @@ function poolConfig(url: string) {
     connectionString: url,
     max: 4,
     idleTimeoutMillis: 10_000,
-    ssl: local ? undefined : { rejectUnauthorized: false as const },
+    ssl: local ? undefined : { rejectUnauthorized: true },
   }
 }
 
