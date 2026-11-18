@@ -89,15 +89,18 @@ export function patreonConfig(): Config | null {
   return { clientId, clientSecret, campaignId }
 }
 
+// The published app is reached at this address. The host that actually runs the
+// request is an internal deployment host, which Patreon will not accept.
+const PUBLIC_ORIGIN = "https://camilia-university.apps.grok.bot"
+
 export function requestOrigin(request: Request) {
   const url = new URL(request.url)
-  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ?? ""
-  const hostHeader = request.headers.get("host")?.trim() ?? ""
-  const candidate = forwardedHost || hostHeader || url.host
-  const host = HOST_RE.test(candidate) ? candidate : url.host
-  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim()
-  const proto = forwardedProto === "http" || forwardedProto === "https" ? forwardedProto : url.protocol === "http:" ? "http" : "https"
-  return `${proto}://${host}`
+  const host = HOST_RE.test(url.host) ? url.host : ""
+  if (host.startsWith("127.0.0.1") || host.startsWith("localhost") || host.startsWith("[::1]")) {
+    const proto = url.protocol === "http:" ? "http" : "https"
+    return `${proto}://${host}`
+  }
+  return PUBLIC_ORIGIN
 }
 
 export function oauthRedirectUri(request: Request) {
