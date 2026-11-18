@@ -1,6 +1,18 @@
 import { randomBytes, timingSafeEqual } from "crypto"
 import { NextResponse, type NextRequest } from "next/server"
 import { dbQuery, databaseUrl, logDatabaseError } from "@/lib/db"
+import {
+  listLibraryMedia,
+  loadLibraryMedia,
+  loadLibrarySession,
+  putLibraryMedia,
+  removeLibraryMedia,
+  removeLibrarySession,
+  removeUserSession,
+  storeLibrarySession,
+  type LibraryMedia,
+  type LibrarySession,
+} from "@/lib/library-store"
 import { deleteObject, mediaPath, objectSize, signedDownloadUrl, signedUpload, supabaseConfig } from "@/lib/supabase"
 import {
   entitledTo,
@@ -337,6 +349,10 @@ async function refreshTokens(config: Config, refreshToken: string) {
 }
 
 async function persistToken(session: StoredSession, token: TokenBundle) {
+  if (supabaseConfig()) {
+    const next: StoredSession = { ...session, refreshToken: token.refreshToken, accessToken: token.accessToken, accessExpiresAt: token.expiresAt, updatedAt: new Date() }
+    return (await storeLibrarySession(libraryFromStored(next))) ? next : null
+  }
   const result = await dbQuery<SessionRow>(
     `UPDATE patreon_session
      SET refresh_token = $2, access_token = $3, access_expires_at = $4, updated_at = now()
@@ -428,6 +444,33 @@ async function loadCreatorAccess(accessToken: string, campaignId: string, userId
   return { owns: false, tiers: [] }
 }
 
+function recordsReady() {
+  return supabaseConfig() != null || databaseUrl() != null
+}
+
+function storedFromLibrary(session: LibrarySession): StoredSession {
+  return { ...session, accessExpiresAt: new Date(session.accessExpiresAt), updatedAt: new Date(session.updatedAt) }
+}
+
+function libraryFromStored(session: StoredSession): LibrarySession {
+  return { ...session, accessExpiresAt: session.accessExpiresAt.toISOString(), updatedAt: session.updatedAt.toISOString() }
+}
+
+function mediaRow(item: LibraryMedia): MediaRow & { storage_path: string } {
+  return {
+    id: item.id,
+    kind: item.kind,
+    name: item.name,
+    mime: item.mime,
+    size: item.size,
+    duration: item.duration,
+    tier_title: item.tierTitle,
+    tier_cents: item.tierCents,
+    added_at: new Date(item.addedAt),
+    storage_path: item.storagePath,
+  }
+}
+
 function decideAdmin(identity: Identity, campaignId: string, access: CreatorAccess | null) {
   if (access) return access.owns
   return identity.campaignId === campaignId
@@ -437,6 +480,21 @@ async function saveSession(id: string, identity: Identity, token: TokenBundle, a
   const entitled = identity.membership?.entitled ?? []
   const patronStatus = identity.membership?.patronStatus ?? null
   const label = tierLabel(entitled)
+  if (supabaseConfig()) {
+    return storeLibrarySession({
+      id,
+      patreonUserId: identity.userId,
+      fullName: identity.fullName,
+      refreshToken: token.refreshToken,
+      accessToken: token.accessToken,
+      accessExpiresAt: token.expiresAt.toISOString(),
+      isAdmin: admin,
+      patronStatus,
+      tierTitle: label,
+      entitled,
+      updatedAt: new Date().toISOString(),
+    })
+  }
   const result = await dbQuery(
     `INSERT INTO patreon_session
       (id, patreon_user_id, full_name, refresh_token, access_token, access_expires_at, is_admin, patron_status, tier_title, entitled, updated_at)
@@ -450,6 +508,21 @@ async function updateSession(session: StoredSession, identity: Identity, token: 
   const entitled = identity.membership?.entitled ?? []
   const patronStatus = identity.membership?.patronStatus ?? null
   const label = tierLabel(entitled)
+  if (supabaseConfig()) {
+    const next: StoredSession = {
+      ...session,
+      fullName: identity.fullName,
+      refreshToken: token.refreshToken,
+      accessToken: token.accessToken,
+      accessExpiresAt: token.expiresAt,
+      isAdmin: admin,
+      patronStatus,
+      tierTitle: label,
+      entitled,
+      updatedAt: new Date(),
+    }
+    return (await storeLibrarySession(libraryFromStored(next))) ? next : null
+  }
   const result = await dbQuery<SessionRow>(
     `UPDATE patreon_session
      SET full_name = $2, refresh_token = $3, access_token = $4, access_expires_at = $5,
@@ -463,10 +536,19 @@ async function updateSession(session: StoredSession, identity: Identity, token: 
 }
 
 async function deleteSession(id: string) {
+  if (supabaseConfig()) {
+    await removeLibrarySession(id)
+    return
+  }
   await dbQuery("DELETE FROM patreon_session WHERE id = $1", [id])
 }
 
 async function readSession(id: string) {
+  if (supabaseConfig()) {
+    const found = await loadLibrarySession(id)
+    if (found === undefined) return undefined
+    return found ? storedFromLibrary(found) : null
+  }
   const result = await dbQuery<SessionRow>(
     `SELECT id, patreon_user_id, full_name, refresh_token, access_token, access_expires_at, is_admin, patron_status, tier_title, entitled, updated_at
      FROM patreon_session WHERE id = $1`,
@@ -518,7 +600,7 @@ async function refreshSession(session: StoredSession, config: Config) {
 async function currentSession(request: NextRequest, forceRefresh: boolean) {
   const config = patreonConfig()
   if (!config) return { kind: "unconfigured" as const }
-  if (!databaseUrl()) return { kind: "database" as const }
+  if (!recordsReady()) return { kind: "database" as const }
   const raw = request.cookies.get(SESSION_COOKIE)?.value ?? ""
   if (!SESSION_ID.test(raw)) return { kind: "guest" as const, config, expired: false }
   let session: StoredSession | null | undefined
@@ -567,6 +649,10 @@ function visibleItems(session: StoredSession, rows: MediaRow[]): LibraryItem[] {
 }
 
 async function listMedia() {
+  if (supabaseConfig()) {
+    const items = await listLibraryMedia()
+    return items ? items.map(mediaRow) : null
+  }
   const result = await dbQuery<MediaRow>(
     `SELECT id, kind, name, mime, size, duration, tier_title, tier_cents, added_at
      FROM patreon_media ORDER BY added_at DESC, id ASC`,
@@ -646,7 +732,7 @@ export async function libraryStatus(request: NextRequest) {
 export function beginLogin(request: NextRequest) {
   const config = patreonConfig()
   if (!config) return redirectTo(request, "/?patreon=error&reason=config")
-  if (!databaseUrl()) return redirectTo(request, "/?patreon=error&reason=database")
+  if (!recordsReady()) return redirectTo(request, "/?patreon=error&reason=database")
   const state = randomBytes(32).toString("hex")
   const authorize = new URL("https://www.patreon.com/oauth2/authorize")
   authorize.searchParams.set("response_type", "code")
@@ -667,7 +753,7 @@ export async function finishLogin(request: NextRequest) {
   const state = url.searchParams.get("state") ?? ""
   const expected = request.cookies.get(STATE_COOKIE)?.value ?? ""
   if (!code || !state || !expected || !safeEqual(state, expected)) return redirectTo(request, "/?patreon=error&reason=state", [clearState])
-  if (!databaseUrl()) return redirectTo(request, "/?patreon=error&reason=database", [clearState])
+  if (!recordsReady()) return redirectTo(request, "/?patreon=error&reason=database", [clearState])
   const token = await exchangeCode(config, code, oauthRedirectUri(request))
   if (!token) return redirectTo(request, "/?patreon=error&reason=token", [clearState])
   const identity = await loadIdentity(token.accessToken, config.campaignId)
@@ -676,7 +762,8 @@ export async function finishLogin(request: NextRequest) {
   const admin = decideAdmin(identity, config.campaignId, access)
   const id = randomBytes(32).toString("hex")
   try {
-    await dbQuery("DELETE FROM patreon_session WHERE patreon_user_id = $1", [identity.userId])
+    if (supabaseConfig()) await removeUserSession(identity.userId)
+    else await dbQuery("DELETE FROM patreon_session WHERE patreon_user_id = $1", [identity.userId])
     const saved = await saveSession(id, identity, token, admin)
     if (!saved) return redirectTo(request, "/?patreon=error&reason=database", [clearState])
   } catch (error) {
@@ -825,6 +912,25 @@ export async function uploadMedia(request: NextRequest) {
     if (stored != null) await deleteObject(path)
     return apiJson({ error: stored != null && stored > MAX_UPLOAD_BYTES ? storageLimitMessage() : `"${meta.name}" could not be saved.` }, 503)
   }
+  if (supabaseConfig()) {
+    const saved = await putLibraryMedia({
+      id: body.id,
+      kind: meta.kind,
+      name: meta.name,
+      mime: meta.mime,
+      size: meta.size,
+      duration: meta.duration,
+      tierTitle: meta.tier.title,
+      tierCents: meta.tier.amountCents,
+      storagePath: path,
+      addedAt: new Date().toISOString(),
+    })
+    if (!saved) {
+      await deleteObject(path)
+      return apiJson({ error: "The library could not be opened." }, 503)
+    }
+    return apiJson({ id: body.id })
+  }
   try {
     const inserted = await dbQuery(
       `INSERT INTO patreon_media (id, kind, name, mime, size, duration, tier_title, tier_cents, bytes, storage_path)
@@ -854,6 +960,14 @@ export async function removeMedia(request: NextRequest, id: string) {
   if (loaded.kind === "database") return apiJson({ error: "The library could not be opened." }, 503)
   if (loaded.kind !== "session" || !loaded.session.isAdmin) return apiJson({ error: "Only the creator can delete a file." }, 403)
   try {
+    if (supabaseConfig()) {
+      const existing = await loadLibraryMedia(id)
+      if (existing === undefined) return apiJson({ error: "The library could not be opened." }, 503)
+      if (!existing) return apiJson({ error: "That file was not found." }, 404)
+      if (!(await removeLibraryMedia(id))) return apiJson({ error: "The library could not be opened." }, 503)
+      await deleteObject(existing.storagePath)
+      return apiJson({ ok: true })
+    }
     const existing = await dbQuery<{ storage_path: string | null }>("SELECT storage_path FROM patreon_media WHERE id = $1", [id])
     if (!existing) return apiJson({ error: "The library could not be opened." }, 503)
     const path = existing.rows[0]?.storage_path
@@ -887,7 +1001,14 @@ export async function streamMedia(request: NextRequest, id: string) {
   type ByteRow = MediaRow & { bytes: Buffer | null; storage_path: string | null }
   let row: ByteRow | undefined
   try {
-    const result = await dbQuery<ByteRow>(
+    if (supabaseConfig()) {
+      const item = await loadLibraryMedia(id)
+      if (item === undefined) return apiJson({ error: "The library could not be opened." }, 503)
+      if (!item) return apiJson({ error: "That file was not found." }, 404)
+      const listed = mediaRow(item)
+      row = { ...listed, bytes: null, storage_path: listed.storage_path }
+    }
+    const result = row ? { rows: [row] } : await dbQuery<ByteRow>(
       `SELECT id, kind, name, mime, size, duration, tier_title, tier_cents, added_at, bytes, storage_path FROM patreon_media WHERE id = $1`,
       [id],
     )

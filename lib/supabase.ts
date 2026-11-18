@@ -249,6 +249,52 @@ export async function downloadObject(path: string, range: string | null) {
   }
 }
 
+export async function readObject(path: string): Promise<Buffer | null | undefined> {
+  if (!(await ensureBucket())) return undefined
+  const ready = serviceHeaders()
+  if (!ready) return undefined
+  try {
+    const response = await fetch(`${ready.config.url}/storage/v1/object/${BUCKET}/${path}`, { headers: ready.headers })
+    if (response.status === 404) return null
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "")
+      if (response.status === 400 && /not found/i.test(detail)) return null
+      return undefined
+    }
+    const bytes = Buffer.from(await response.arrayBuffer())
+    if (bytes.length > 1024 * 1024) return undefined
+    return bytes
+  } catch {
+    return undefined
+  }
+}
+
+export async function listObjects(prefix: string) {
+  if (!(await ensureBucket())) return null
+  const ready = serviceHeaders("application/json")
+  if (!ready) return null
+  const names: string[] = []
+  try {
+    for (let offset = 0; offset < 1_000; offset += 100) {
+      const response = await fetch(`${ready.config.url}/storage/v1/object/list/${BUCKET}`, {
+        method: "POST",
+        headers: ready.headers,
+        body: JSON.stringify({ prefix, limit: 100, offset }),
+      })
+      if (!response.ok) return null
+      const rows = (await response.json().catch(() => null)) as { name?: string; id?: string | null }[] | null
+      if (!Array.isArray(rows) || rows.length === 0) break
+      for (const row of rows) {
+        if (typeof row.name === "string" && row.name && row.id) names.push(`${prefix}${row.name}`)
+      }
+      if (rows.length < 100) break
+    }
+    return names
+  } catch {
+    return null
+  }
+}
+
 export async function deleteObject(path: string) {
   const ready = serviceHeaders("application/json")
   if (!ready) return false
