@@ -336,6 +336,18 @@ async function refreshTokens(config: Config, refreshToken: string) {
   return parseToken(await readJson(response), refreshToken)
 }
 
+async function persistToken(session: StoredSession, token: TokenBundle) {
+  const result = await dbQuery<SessionRow>(
+    `UPDATE patreon_session
+     SET refresh_token = $2, access_token = $3, access_expires_at = $4, updated_at = now()
+     WHERE id = $1
+     RETURNING id, patreon_user_id, full_name, refresh_token, access_token, access_expires_at, is_admin, patron_status, tier_title, entitled, updated_at`,
+    [session.id, token.refreshToken, token.accessToken, token.expiresAt.toISOString()],
+  )
+  const row = result?.rows[0]
+  return row ? toSession(row) : null
+}
+
 function identityUrl() {
   const url = new URL("https://www.patreon.com/api/oauth2/v2/identity")
   url.searchParams.set("include", "memberships,memberships.currently_entitled_tiers,memberships.campaign,campaign")
@@ -477,17 +489,27 @@ async function refreshSession(session: StoredSession, config: Config) {
   const current = refreshing.get(session.id)
   if (current) return current
   const job = (async () => {
-    const token = await refreshTokens(config, session.refreshToken)
-    if (!token) {
-      await deleteSession(session.id).catch((error: unknown) => logDatabaseError(error))
-      return null
+    let active = session
+    const expiring = session.accessExpiresAt.getTime() < Date.now() + 60_000
+    if (expiring) {
+      const token = await refreshTokens(config, session.refreshToken)
+      if (!token) {
+        if (session.accessExpiresAt.getTime() > Date.now()) return session
+        await deleteSession(session.id).catch((error: unknown) => logDatabaseError(error))
+        return null
+      }
+      const saved = await persistToken(session, token).catch((error: unknown) => {
+        logDatabaseError(error)
+        return null
+      })
+      active = saved ?? { ...session, accessToken: token.accessToken, refreshToken: token.refreshToken, accessExpiresAt: token.expiresAt }
     }
-    const next = await applyMembership(session, config, token)
-    if (!next) {
-      await deleteSession(session.id).catch((error: unknown) => logDatabaseError(error))
+    const token = { accessToken: active.accessToken, refreshToken: active.refreshToken, expiresAt: active.accessExpiresAt }
+    const next = await applyMembership(active, config, token).catch((error: unknown) => {
+      logDatabaseError(error)
       return null
-    }
-    return next
+    })
+    return next ?? active
   })().finally(() => refreshing.delete(session.id))
   refreshing.set(session.id, job)
   return job
@@ -508,7 +530,7 @@ async function currentSession(request: NextRequest, forceRefresh: boolean) {
   }
   if (session === undefined) return { kind: "database" as const }
   if (!session) return { kind: "guest" as const, config, expired: false }
-  const stale = forceRefresh || Date.now() - session.updatedAt.getTime() > 60_000 || session.accessExpiresAt.getTime() < Date.now() + 60_000
+  const stale = forceRefresh || Date.now() - session.updatedAt.getTime() > 5 * 60_000 || session.accessExpiresAt.getTime() < Date.now() + 60_000
   if (!stale) return { kind: "session" as const, config, session, expired: false }
   try {
     const next = await refreshSession(session, config)
@@ -516,6 +538,7 @@ async function currentSession(request: NextRequest, forceRefresh: boolean) {
     return { kind: "session" as const, config, session: next, expired: false }
   } catch (error) {
     logDatabaseError(error)
+    if (session.accessExpiresAt.getTime() > Date.now()) return { kind: "session" as const, config, session, expired: false }
     return { kind: "database" as const }
   }
 }
@@ -530,7 +553,7 @@ function visibleItems(session: StoredSession, rows: MediaRow[]): LibraryItem[] {
       id: row.id,
       kind: row.kind === "audio" ? "audio" : "video",
       name: row.name,
-      size: row.size,
+      size: Number(row.size),
       mime: row.mime,
       addedAt: new Date(row.added_at).getTime(),
       duration: row.duration,
@@ -566,7 +589,7 @@ function guestStatus(expired: boolean): LibraryStatus {
 
 export async function libraryStatus(request: NextRequest) {
   if (!patreonConfig()) return apiJson(sampleLibrary())
-  const loaded = await currentSession(request, true)
+  const loaded = await currentSession(request, false)
   if (loaded.kind === "unconfigured") return apiJson(sampleLibrary())
   if (loaded.kind === "database") {
     return apiJson({
@@ -575,7 +598,7 @@ export async function libraryStatus(request: NextRequest) {
       admin: false,
       name: null,
       tierTitle: null,
-      notice: "The library could not be opened.",
+      notice: "The library database could not be reached.",
       tiers: null,
       items: [],
     } satisfies LibraryStatus)
@@ -595,7 +618,7 @@ export async function libraryStatus(request: NextRequest) {
       admin: loaded.session.isAdmin,
       name: loaded.session.fullName,
       tierTitle: loaded.session.tierTitle,
-      notice: "The library could not be opened.",
+      notice: "The library database could not be reached.",
       tiers: null,
       items: [],
     } satisfies LibraryStatus)
