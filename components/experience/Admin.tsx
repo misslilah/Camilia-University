@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useSyncExternalStore } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 import { entitledTo } from "@/lib/patreon-access"
 import { renameMedia, useLibrary, type LibraryItem } from "@/lib/patreon"
 import { previewTierId, setPreviewTier, subscribePreview } from "@/lib/tier-view"
@@ -18,6 +18,68 @@ function formatDate(ms: number) {
     month: "short",
     year: "numeric",
   })
+}
+
+type StudentRow = { id: string; name: string; email: string; joinedAt: string; tier: string }
+
+function joinedOn(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  return date.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })
+}
+
+function Students() {
+  const [rows, setRows] = useState<StudentRow[] | null>(null)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    let gone = false
+    fetch("/api/patreon/students", { credentials: "same-origin", cache: "no-store" })
+      .then(async (response) => {
+        const body = (await response.json().catch(() => null)) as { students?: StudentRow[]; error?: string } | null
+        if (!response.ok || !body?.students) throw new Error(body?.error || "The student list could not be opened.")
+        if (!gone) setRows(body.students)
+      })
+      .catch((reason: unknown) => {
+        if (!gone) setError(reason instanceof Error ? reason.message : "The student list could not be opened.")
+      })
+    return () => {
+      gone = true
+    }
+  }, [])
+
+  return (
+    <section>
+      <h3 className="font-serif text-xl text-[#1d2a4a]">Students</h3>
+      <p className="mt-1 text-sm text-[#1d2433]/65">Everyone who enrolled, with the Patreon tier linked to that account.</p>
+      {error ? (
+        <p className="mt-2 text-sm text-[#8d2b2b]">{error}</p>
+      ) : rows == null ? (
+        <p className="mt-2 text-sm text-[#1d2433]/65">Opening the student list…</p>
+      ) : rows.length === 0 ? (
+        <p className="mt-2 text-sm text-[#1d2433]/65">No one has enrolled yet.</p>
+      ) : (
+        <ul className="mt-2 flex flex-col gap-2">
+          {rows.map((student) => {
+            const joined = joinedOn(student.joinedAt)
+            const connected = student.tier !== "Patreon not connected"
+            return (
+              <li key={student.id} className="flex items-start justify-between gap-3 rounded-xl bg-white px-4 py-3 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-[#1d2a4a]">{student.name}</p>
+                  <p className="truncate text-xs text-[#1d2433]/55">
+                    {student.email}
+                    {joined ? ` · ${joined}` : ""}
+                  </p>
+                </div>
+                <p className={`shrink-0 text-right text-xs font-semibold ${connected ? "text-[#1d2a4a]" : "text-[#1d2433]/45"}`}>{student.tier}</p>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
 }
 
 function FileName({ item }: { item: LibraryItem }) {
@@ -103,6 +165,9 @@ export function AdminDesk() {
                 <p className="mt-1 font-serif text-3xl text-[#1d2a4a]">{value}</p>
               </div>
             ))}
+          </div>
+          <div className="mt-6">
+            <Students />
           </div>
           <section className="mt-6">
             <h3 className="font-serif text-xl text-[#1d2a4a]">Tiers</h3>

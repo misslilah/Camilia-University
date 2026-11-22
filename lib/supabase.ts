@@ -129,6 +129,40 @@ export async function updateProfileName(accessToken: string, name: string) {
   return response.ok
 }
 
+export async function listAuthUsers() {
+  const ready = serviceHeaders()
+  if (!ready) return null
+  const users: { id: string; email: string; name: string; createdAt: string }[] = []
+  try {
+    for (let page = 1; page <= 20; page += 1) {
+      const response = await fetch(`${ready.config.url}/auth/v1/admin/users?page=${page}&per_page=200`, {
+        headers: ready.headers,
+        cache: "no-store",
+      })
+      if (!response.ok) return null
+      const body = (await response.json().catch(() => null)) as { users?: unknown } | unknown[] | null
+      const batch = Array.isArray(body) ? body : body && typeof body === "object" && Array.isArray(body.users) ? body.users : []
+      for (const item of batch) {
+        if (!item || typeof item !== "object") continue
+        const user = item as AuthUser & { created_at?: unknown }
+        const id = user.id ?? ""
+        const email = user.email ?? ""
+        if (!id || !email) continue
+        users.push({
+          id,
+          email,
+          name: nameFromUser(user, email) || "Student",
+          createdAt: typeof user.created_at === "string" ? user.created_at : "",
+        })
+      }
+      if (batch.length < 200) break
+    }
+    return users
+  } catch {
+    return null
+  }
+}
+
 export async function refreshAuth(refreshToken: string) {
   const config = supabaseConfig()
   if (!config) return null

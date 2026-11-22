@@ -12,6 +12,8 @@ export type LibrarySession = {
   patronStatus: string | null
   tierTitle: string | null
   entitled: EntitledTier[]
+  academyUserId: string | null
+  academyEmail: string | null
   updatedAt: string
 }
 
@@ -96,6 +98,8 @@ export function sessionFromJson(value: unknown): LibrarySession | null {
     patronStatus: typeof row.patronStatus === "string" ? row.patronStatus : null,
     tierTitle: typeof row.tierTitle === "string" ? row.tierTitle : null,
     entitled: entitled(row.entitled),
+    academyUserId: text(row.academyUserId) || null,
+    academyEmail: text(row.academyEmail) || null,
     updatedAt,
   }
 }
@@ -129,6 +133,31 @@ export async function storeLibrarySession(session: LibrarySession) {
   const saved = await writeJson(sessionPath(session.id), session)
   if (!saved) return false
   return writeJson(userPath(session.patreonUserId), { id: session.id })
+}
+
+export async function listMemberLinks() {
+  const names = await listObjects("patreon/sessions/")
+  if (!names) return null
+  const links: {
+    academyUserId: string
+    tierTitle: string | null
+    patronStatus: string | null
+    isAdmin: boolean
+    updatedAt: string
+  }[] = []
+  for (const name of names) {
+    const value = await readJson(name)
+    const session = value ? sessionFromJson(value) : null
+    if (!session?.academyUserId) continue
+    links.push({
+      academyUserId: session.academyUserId,
+      tierTitle: session.tierTitle,
+      patronStatus: session.patronStatus,
+      isAdmin: session.isAdmin,
+      updatedAt: session.updatedAt,
+    })
+  }
+  return links
 }
 
 export async function removeLibrarySession(id: string) {

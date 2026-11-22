@@ -5,6 +5,7 @@ import {
   listLibraryMedia,
   loadCampaignCatalog,
   loadLibraryMedia,
+  listMemberLinks,
   loadLibrarySession,
   putLibraryMedia,
   removeLibraryMedia,
@@ -15,7 +16,7 @@ import {
   type LibraryMedia,
   type LibrarySession,
 } from "@/lib/library-store"
-import { deleteObject, mediaPath, objectSize, signedDownloadUrl, signedUpload, supabaseConfig } from "@/lib/supabase"
+import { deleteObject, listAuthUsers, mediaPath, objectSize, signedDownloadUrl, signedUpload, supabaseConfig, verifyAccess } from "@/lib/supabase"
 import {
   campaignPage,
   entitledTo,
@@ -34,6 +35,7 @@ import {
   type LibraryStatus,
   type MediaKind,
 } from "@/lib/patreon-access"
+import { joinRoster } from "@/lib/roster"
 
 const SESSION_COOKIE = "camilia_patreon"
 const STATE_COOKIE = "camilia_patreon_state"
@@ -61,6 +63,8 @@ type StoredSession = {
   patronStatus: string | null
   tierTitle: string | null
   entitled: EntitledTier[]
+  academyUserId: string | null
+  academyEmail: string | null
   updatedAt: Date
 }
 
@@ -86,6 +90,8 @@ type SessionRow = {
   patron_status: string | null
   tier_title: string | null
   entitled: unknown
+  academy_user_id: string | null
+  academy_email: string | null
   updated_at: Date
 }
 
@@ -222,6 +228,8 @@ function toSession(row: SessionRow): StoredSession {
     patronStatus: row.patron_status,
     tierTitle: row.tier_title,
     entitled: readEntitled(row.entitled),
+    academyUserId: row.academy_user_id || null,
+    academyEmail: row.academy_email || null,
     updatedAt: new Date(row.updated_at),
   }
 }
@@ -376,7 +384,7 @@ async function persistToken(session: StoredSession, token: TokenBundle) {
     `UPDATE patreon_session
      SET refresh_token = $2, access_token = $3, access_expires_at = $4, updated_at = now()
      WHERE id = $1
-     RETURNING id, patreon_user_id, full_name, refresh_token, access_token, access_expires_at, is_admin, patron_status, tier_title, entitled, updated_at`,
+     RETURNING id, patreon_user_id, full_name, refresh_token, access_token, access_expires_at, is_admin, patron_status, tier_title, entitled, academy_user_id, academy_email, updated_at`,
     [session.id, token.refreshToken, token.accessToken, token.expiresAt.toISOString()],
   )
   const row = result?.rows[0]
@@ -534,7 +542,36 @@ function decideAdmin(identity: Identity, campaignId: string, access: CreatorAcce
   })
 }
 
-async function saveSession(id: string, identity: Identity, token: TokenBundle, admin: boolean) {
+async function academyLink(request: NextRequest) {
+  const raw = request.cookies.get("camilia_academy")?.value ?? ""
+  if (!raw) return null
+  let token = ""
+  try {
+    const data = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as { accessToken?: unknown }
+    token = typeof data.accessToken === "string" ? data.accessToken : ""
+  } catch {
+    return null
+  }
+  if (!token) return null
+  const user = await verifyAccess(token)
+  if (!user?.id || !user.email || !/^[0-9a-f-]{16,80}$/i.test(user.id)) return null
+  return { userId: user.id, email: user.email.toLowerCase() }
+}
+
+async function rememberStudent(session: StoredSession, request: NextRequest) {
+  const link = await academyLink(request).catch(() => null)
+  if (!link) return
+  if (session.academyUserId === link.userId && session.academyEmail === link.email) return
+  session.academyUserId = link.userId
+  session.academyEmail = link.email
+  if (supabaseConfig()) {
+    await storeLibrarySession(libraryFromStored(session))
+    return
+  }
+  await dbQuery(`UPDATE patreon_session SET academy_user_id = $2, academy_email = $3 WHERE id = $1`, [session.id, link.userId, link.email])
+}
+
+async function saveSession(id: string, identity: Identity, token: TokenBundle, admin: boolean, link: { userId: string; email: string } | null) {
   const entitled = identity.membership?.entitled ?? []
   const patronStatus = identity.membership?.patronStatus ?? null
   const label = tierLabel(entitled)
@@ -550,14 +587,16 @@ async function saveSession(id: string, identity: Identity, token: TokenBundle, a
       patronStatus,
       tierTitle: label,
       entitled,
+      academyUserId: link?.userId ?? null,
+      academyEmail: link?.email ?? null,
       updatedAt: new Date().toISOString(),
     })
   }
   const result = await dbQuery(
     `INSERT INTO patreon_session
-      (id, patreon_user_id, full_name, refresh_token, access_token, access_expires_at, is_admin, patron_status, tier_title, entitled, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb, now())`,
-    [id, identity.userId, identity.fullName, token.refreshToken, token.accessToken, token.expiresAt.toISOString(), admin, patronStatus, label, JSON.stringify(entitled)],
+      (id, patreon_user_id, full_name, refresh_token, access_token, access_expires_at, is_admin, patron_status, tier_title, entitled, academy_user_id, academy_email, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12, now())`,
+    [id, identity.userId, identity.fullName, token.refreshToken, token.accessToken, token.expiresAt.toISOString(), admin, patronStatus, label, JSON.stringify(entitled), link?.userId ?? null, link?.email ?? null],
   )
   return result != null
 }
@@ -586,7 +625,7 @@ async function updateSession(session: StoredSession, identity: Identity, token: 
      SET full_name = $2, refresh_token = $3, access_token = $4, access_expires_at = $5,
          is_admin = $6, patron_status = $7, tier_title = $8, entitled = $9::jsonb, updated_at = now()
      WHERE id = $1
-     RETURNING id, patreon_user_id, full_name, refresh_token, access_token, access_expires_at, is_admin, patron_status, tier_title, entitled, updated_at`,
+     RETURNING id, patreon_user_id, full_name, refresh_token, access_token, access_expires_at, is_admin, patron_status, tier_title, entitled, academy_user_id, academy_email, updated_at`,
     [session.id, identity.fullName, token.refreshToken, token.accessToken, token.expiresAt.toISOString(), admin, patronStatus, label, JSON.stringify(entitled)],
   )
   const row = result?.rows[0]
@@ -608,7 +647,7 @@ async function readSession(id: string) {
     return found ? storedFromLibrary(found) : null
   }
   const result = await dbQuery<SessionRow>(
-    `SELECT id, patreon_user_id, full_name, refresh_token, access_token, access_expires_at, is_admin, patron_status, tier_title, entitled, updated_at
+    `SELECT id, patreon_user_id, full_name, refresh_token, access_token, access_expires_at, is_admin, patron_status, tier_title, entitled, academy_user_id, academy_email, updated_at
      FROM patreon_session WHERE id = $1`,
     [id],
   )
@@ -755,6 +794,7 @@ export async function libraryStatus(request: NextRequest) {
     const published = await publishedCatalog(loaded.config.campaignId)
     return apiJson(guestStatus(loaded.expired, campaignPage(published.vanity)))
   }
+  await rememberStudent(loaded.session, request).catch((error: unknown) => logDatabaseError(error))
   let rows: MediaRow[] | null = null
   try {
     rows = await listMedia()
@@ -804,6 +844,44 @@ export async function libraryStatus(request: NextRequest) {
   return apiJson(body)
 }
 
+async function memberLinks() {
+  if (supabaseConfig()) return listMemberLinks()
+  const result = await dbQuery<{
+    academy_user_id: string
+    tier_title: string | null
+    patron_status: string | null
+    is_admin: boolean
+    updated_at: Date
+  }>(
+    `SELECT academy_user_id, tier_title, patron_status, is_admin, updated_at
+     FROM patreon_session WHERE academy_user_id IS NOT NULL`,
+  )
+  if (!result) return null
+  return result.rows.flatMap((row) => {
+    if (!row.academy_user_id) return []
+    return [
+      {
+        academyUserId: row.academy_user_id,
+        tierTitle: row.tier_title,
+        patronStatus: row.patron_status,
+        isAdmin: row.is_admin,
+        updatedAt: new Date(row.updated_at).toISOString(),
+      },
+    ]
+  })
+}
+
+export async function studentRoster(request: NextRequest) {
+  if (crossSite(request)) return apiJson({ error: "The request was refused." }, 403)
+  const loaded = await currentSession(request, false)
+  if (loaded.kind !== "session" || !loaded.session.isAdmin) return apiJson({ error: "Only the creator can open the student list." }, 403)
+  const users = await listAuthUsers()
+  if (!users) return apiJson({ error: "The student list could not be opened." }, 503)
+  const links = await memberLinks()
+  if (!links) return apiJson({ error: "Patreon memberships could not be opened." }, 503)
+  return apiJson({ students: joinRoster(users, links) })
+}
+
 export function beginLogin(request: NextRequest) {
   const config = patreonConfig()
   if (!config) return redirectTo(request, "/?patreon=error&reason=config")
@@ -836,11 +914,12 @@ export async function finishLogin(request: NextRequest) {
   const access = await loadCreatorAccess(token.accessToken, config.campaignId, identity.userId).catch(() => null)
   const admin = decideAdmin(identity, config.campaignId, access)
   if (admin) await rememberCatalog(config.campaignId, access).catch((error: unknown) => logDatabaseError(error))
+  const link = await academyLink(request).catch(() => null)
   const id = randomBytes(32).toString("hex")
   try {
     if (supabaseConfig()) await removeUserSession(identity.userId)
     else await dbQuery("DELETE FROM patreon_session WHERE patreon_user_id = $1", [identity.userId])
-    const saved = await saveSession(id, identity, token, admin)
+    const saved = await saveSession(id, identity, token, admin, link)
     if (!saved) return redirectTo(request, "/?patreon=error&reason=database", [clearState])
   } catch (error) {
     logDatabaseError(error)

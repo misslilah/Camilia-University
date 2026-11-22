@@ -16,8 +16,12 @@ const SCHEMA = [
   patron_status text,
   tier_title text,
   entitled jsonb NOT NULL DEFAULT '[]'::jsonb,
+  academy_user_id text,
+  academy_email text,
   updated_at timestamptz NOT NULL DEFAULT now()
 )`,
+  `ALTER TABLE patreon_session ADD COLUMN IF NOT EXISTS academy_user_id text`,
+  `ALTER TABLE patreon_session ADD COLUMN IF NOT EXISTS academy_email text`,
   `CREATE TABLE IF NOT EXISTS patreon_media (
   id text PRIMARY KEY,
   kind text NOT NULL,
