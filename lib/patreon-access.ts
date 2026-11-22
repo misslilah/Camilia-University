@@ -150,6 +150,39 @@ export function tierById(tiers: CampaignTier[], id: string) {
   return tiers.find((tier) => tier.id === key) ?? null
 }
 
+export type LibrarySort = "newest" | "tier-up" | "tier-down"
+
+export function viewAsTier(item: LibraryItem, tier: CampaignTier): LibraryItem {
+  if (item.sample) return item
+  const open = entitledTo(item, [tier])
+  if (open) return { ...item, locked: false }
+  return { ...item, locked: true, url: null }
+}
+
+export function tierChoices(items: LibraryItem[]) {
+  const map = new Map<string, number | null>()
+  for (const item of items) {
+    const title = item.tierTitle.trim()
+    if (!title || map.has(title)) continue
+    map.set(title, item.tierCents)
+  }
+  return [...map.entries()]
+    .map(([title, amountCents]) => ({ title, amountCents }))
+    .sort((a, b) => (a.amountCents ?? 0) - (b.amountCents ?? 0) || a.title.localeCompare(b.title))
+}
+
+export function arrangeLibrary(items: LibraryItem[], sort: LibrarySort, tierTitle: string | null) {
+  const wanted = tierTitle?.trim() ?? ""
+  const filtered = wanted ? items.filter((item) => item.tierTitle.trim() === wanted) : items
+  return [...filtered].sort((a, b) => {
+    if (sort === "newest") return b.addedAt - a.addedAt || a.name.localeCompare(b.name)
+    const amount = (a.tierCents ?? 0) - (b.tierCents ?? 0)
+    const tier = sort === "tier-up" ? amount : -amount
+    if (tier !== 0) return tier
+    return a.name.localeCompare(b.name)
+  })
+}
+
 export function tierOptionLabel(tier: CampaignTier) {
   if (tier.amountCents == null) return tier.title
   const major = Math.trunc(tier.amountCents / 100)

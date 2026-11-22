@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 import { createPortal } from "react-dom"
 import { Play, Trash2, Upload, X } from "lucide-react"
 import { clearLibraryError, deleteMedia, disconnectPatreon, uploadFiles, useLibrary, type LibraryItem, type MediaKind } from "@/lib/patreon"
 import { holdStage } from "@/lib/stage"
-import { tierOptionLabel } from "@/lib/patreon-access"
+import { arrangeLibrary, tierChoices, tierOptionLabel, viewAsTier, type LibrarySort } from "@/lib/patreon-access"
+import { previewTierId, setPreviewTier, subscribePreview } from "@/lib/tier-view"
 import { cn } from "@/lib/utils"
 
 export function PatreonMark({ className }: { className?: string; strokeWidth?: number }) {
@@ -54,8 +55,9 @@ function formatDate(ms: number) {
   })
 }
 
-function emptyCopy(admin: boolean, tab: MediaKind, busy: boolean) {
+function emptyCopy(admin: boolean, tab: MediaKind, busy: boolean, tierTitle: string | null) {
   if (busy) return "Saving the file."
+  if (tierTitle) return `Nothing in ${tierTitle} for this tab.`
   if (admin) {
     return tab === "audio"
       ? "No audio is in the library yet. Upload a file and assign a tier."
@@ -178,9 +180,17 @@ export function Patreon() {
   const [busy, setBusy] = useState(false)
   const [tierId, setTierId] = useState("")
   const [playing, setPlaying] = useState<string | null>(null)
-  const listed = library.items.filter((item) => item.kind === tab)
-  const film = library.items.find((item) => item.id === playing && item.kind === "video" && item.url) ?? null
+  const [tierFilter, setTierFilter] = useState<string | null>(null)
+  const [sort, setSort] = useState<LibrarySort>("tier-up")
+  const previewId = useSyncExternalStore(subscribePreview, previewTierId, () => null)
   const knownTiers = library.tiers ?? []
+  const preview = library.admin ? knownTiers.find((tier) => tier.id === previewId) ?? null : null
+  const viewed = preview ? library.items.map((item) => viewAsTier(item, preview)) : library.items
+  const tabItems = viewed.filter((item) => item.kind === tab)
+  const choices = tierChoices(tabItems)
+  const activeFilter = choices.some((tier) => tier.title === tierFilter) ? tierFilter : null
+  const listed = arrangeLibrary(tabItems, sort, activeFilter)
+  const film = viewed.find((item) => item.id === playing && item.kind === "video" && item.url && !item.locked) ?? null
   const selectedTier = knownTiers.find((tier) => tier.id === tierId) ?? null
 
   const choose = (next: MediaKind) => {
@@ -221,7 +231,8 @@ export function Patreon() {
             </div>
           ) : library.connected ? (
             <div className="flex flex-wrap items-center gap-2">
-              {library.admin && <span className="rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-[#c2185b]">Creator</span>}
+              {library.admin && !preview && <span className="rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-[#c2185b]">Creator</span>}
+              {preview && <span className="rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-[#7a2450]">Viewing as {preview.title}</span>}
               {library.tierTitle && (
                 <span className="rounded-full bg-white/85 px-3 py-1 text-[12px] font-semibold text-[#7a2450]">Tier: {library.tierTitle}</span>
               )}
@@ -262,7 +273,7 @@ export function Patreon() {
           </div>
         </div>
       </div>
-      {library.admin && (
+      {library.admin && !preview && (
         <div className="flex shrink-0 flex-wrap items-center gap-2 px-5 pb-3">
           {knownTiers.length > 0 ? (
             <>
@@ -319,6 +330,14 @@ export function Patreon() {
           {library.error}
         </p>
       )}
+      {preview && (
+        <div className="mx-5 mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[16px] bg-white px-4 py-2 text-sm text-[#5c2144]">
+          <p>This is what {preview.title} can play. Files above that tier stay locked.</p>
+          <button type="button" onClick={() => setPreviewTier(null)} className="font-semibold underline underline-offset-2">
+            Back to creator
+          </button>
+        </div>
+      )}
       {library.notice && (
         <p role="status" className="mx-5 mb-3 rounded-[16px] bg-white/85 px-4 py-2 text-sm text-[#5c2144]">
           {library.notice}
@@ -326,11 +345,55 @@ export function Patreon() {
       )}
 
       <div role="tabpanel" aria-label={tab === "audio" ? "Audio" : "Video"} className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+        {library.ready && choices.length > 0 && (
+          <div className="mb-3 flex flex-col gap-2">
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              <button
+                type="button"
+                aria-pressed={activeFilter == null}
+                onClick={() => setTierFilter(null)}
+                className={cn(
+                  "h-8 shrink-0 rounded-full px-3 text-[12px] font-semibold",
+                  activeFilter == null ? "bg-white text-[#c2185b]" : "bg-white/75 text-[#7a2450]",
+                )}
+              >
+                All tiers
+              </button>
+              {choices.map((tier) => (
+                <button
+                  key={tier.title}
+                  type="button"
+                  aria-pressed={activeFilter === tier.title}
+                  onClick={() => setTierFilter(tier.title)}
+                  className={cn(
+                    "h-8 shrink-0 rounded-full px-3 text-[12px] font-semibold",
+                    activeFilter === tier.title ? "bg-white text-[#c2185b]" : "bg-white/75 text-[#7a2450]",
+                  )}
+                >
+                  {tier.title}
+                </button>
+              ))}
+            </div>
+            <label className="flex items-center gap-2 text-[12px] font-semibold text-white">
+              Sort
+              <select
+                aria-label="Sort the library"
+                value={sort}
+                onChange={(event) => setSort(event.target.value as LibrarySort)}
+                className="h-8 rounded-full bg-white px-3 text-[12px] font-semibold text-[#5c2144] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+              >
+                <option value="tier-up">Tier, low to high</option>
+                <option value="tier-down">Tier, high to low</option>
+                <option value="newest">Newest</option>
+              </select>
+            </label>
+          </div>
+        )}
         <div className="rounded-[22px] bg-[#ffc6df] p-3 shadow-[0_10px_28px_rgba(170,40,90,0.16)]">
           {!library.ready ? (
             <p className="px-3 py-8 text-center text-sm text-[#5c2144]/70">Opening the library…</p>
           ) : listed.length === 0 ? (
-            <p className="px-4 py-10 text-center text-sm leading-relaxed text-[#5c2144]/80">{emptyCopy(library.admin, tab, busy)}</p>
+            <p className="px-4 py-10 text-center text-sm leading-relaxed text-[#5c2144]/80">{emptyCopy(library.admin && !preview, tab, busy, activeFilter)}</p>
           ) : (
             <ul className="flex flex-col gap-2">
               {listed.map((item) => (
@@ -350,7 +413,7 @@ export function Patreon() {
                         <span> · {formatDate(item.addedAt)}</span>
                       </p>
                     </div>
-                    {library.admin && !item.sample && (
+                    {library.admin && !preview && !item.sample && (
                       <button
                         type="button"
                         aria-label={`Delete ${item.name}`}

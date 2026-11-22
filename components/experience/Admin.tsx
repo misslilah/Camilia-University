@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useSyncExternalStore } from "react"
+import { entitledTo } from "@/lib/patreon-access"
 import { renameMedia, useLibrary, type LibraryItem } from "@/lib/patreon"
+import { previewTierId, setPreviewTier, subscribePreview } from "@/lib/tier-view"
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
@@ -72,6 +74,7 @@ export function AdminDesk() {
   const videos = files.filter((item) => item.kind === "video")
   const audios = files.filter((item) => item.kind === "audio")
   const tiers = library.tiers ?? []
+  const previewId = useSyncExternalStore(subscribePreview, previewTierId, () => null)
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#f6f1e8] text-[#1c2433]">
@@ -103,17 +106,44 @@ export function AdminDesk() {
           </div>
           <section className="mt-6">
             <h3 className="font-serif text-xl text-[#1d2a4a]">Tiers</h3>
+            <p className="mt-1 text-sm text-[#1d2433]/65">Choose a tier, then open Patreon. The library shows what that tier can play.</p>
             {tiers.length === 0 ? (
               <p className="mt-2 text-sm text-[#1d2433]/65">No tiers have been loaded from the campaign yet.</p>
             ) : (
-              <ul className="mt-2 flex flex-col gap-2">
-                {tiers.map((tier) => (
-                  <li key={tier.id} className="flex items-baseline justify-between gap-3 rounded-xl bg-white px-4 py-2.5 text-sm">
-                    <span className="font-medium">{tier.title}</span>
-                    <span className="text-[#1d2433]/55">{tier.amountCents == null ? "—" : `${(tier.amountCents / 100).toFixed(2)}`}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-2 flex flex-col gap-2">
+                <button
+                  type="button"
+                  aria-pressed={previewId == null}
+                  onClick={() => setPreviewTier(null)}
+                  className={`h-9 rounded-xl px-4 text-left text-sm font-medium ${previewId == null ? "bg-[#1d2a4a] text-[#f6f1e8]" : "bg-white text-[#1d2a4a]"}`}
+                >
+                  Creator view
+                </button>
+                <ul className="flex flex-col gap-2">
+                  {tiers.map((tier) => {
+                    const playable = files.filter((item) => entitledTo(item, [tier])).length
+                    const current = previewId === tier.id
+                    return (
+                      <li key={tier.id} className="flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-2.5 text-sm">
+                        <div className="min-w-0">
+                          <p className="font-medium">{tier.title}</p>
+                          <p className="text-xs text-[#1d2433]/55">
+                            {tier.amountCents == null ? "Amount not set" : `${(tier.amountCents / 100).toFixed(2)}`} · {playable} of {files.length} play
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          aria-pressed={current}
+                          onClick={() => setPreviewTier(tier.id)}
+                          className={`h-8 shrink-0 rounded-full px-3 text-[12px] font-semibold ${current ? "bg-[#1d2a4a] text-[#f6f1e8]" : "bg-[#f6f1e8] text-[#1d2a4a]"}`}
+                        >
+                          {current ? "Viewing" : "View"}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
             )}
           </section>
           <section className="mt-6 pb-2">
