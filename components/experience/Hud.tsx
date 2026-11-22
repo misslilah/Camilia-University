@@ -218,7 +218,7 @@ export function Hud({
         {phase === "room" &&
           "You are in the bedroom: blue walls, a bed under the window, a desk with a computer, a wardrobe and a standing mirror. Click the wardrobe to get dressed, or the computer to use it. Press Escape to go back to the hallway."}
         {phase === "computer" &&
-          "You sit at the desk in front of the computer desktop. Open the start menu or the desktop icons. Press Escape to go back to the room."}
+          "You sit at the desk in front of the computer desktop. Open the start menu or the desktop icons. The Admin desk appears only for the creator. Press Escape to go back to the room."}
         {phase === "wardrobe" &&
           "The wardrobe is open and your character stands in the mirror. Use the panel to create your character, then to choose underwear, tops, pants and shoes. Press Escape to go back to the room."}
         {phase === "sitting" &&

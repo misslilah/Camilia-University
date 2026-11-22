@@ -12,22 +12,24 @@ import {
   Minus,
   NotebookPen,
   Power,
+  Shield,
   Trash2,
   Volume2,
   Wifi,
   X,
   type LucideIcon,
 } from "lucide-react"
+import { AdminDesk } from "@/components/experience/Admin"
 import { Browser } from "@/components/experience/browser/Browser"
 import { Patreon, PatreonMark } from "@/components/experience/Patreon"
-import { usePatreonAdmin } from "@/lib/patreon"
+import { useLibrary, usePatreonAdmin } from "@/lib/patreon"
 import { Button } from "@/components/ui/button"
 import { PANEL_BREAKPOINT } from "@/lib/scene"
 import { useScreenRect, type ScreenRect } from "@/lib/screen-rect"
 import { sound } from "@/lib/sound"
 import { cn } from "@/lib/utils"
 
-type AppId = "files" | "courses" | "browser" | "notes" | "trash" | "patreon"
+type AppId = "files" | "courses" | "browser" | "notes" | "trash" | "patreon" | "admin"
 type AppIcon = LucideIcon | ComponentType<{ className?: string; strokeWidth?: number }>
 
 const APPS: { id: AppId; name: string; icon: AppIcon; tint: string }[] = [
@@ -37,6 +39,7 @@ const APPS: { id: AppId; name: string; icon: AppIcon; tint: string }[] = [
   { id: "notes", name: "Notes", icon: NotebookPen, tint: "from-[#4ac17a] to-[#2b8d55]" },
   { id: "trash", name: "Trash", icon: Trash2, tint: "from-[#8b93a3] to-[#5d6575]" },
   { id: "patreon", name: "Patreon", icon: PatreonMark, tint: "from-[#ff8f6b] to-[#e25b32]" },
+  { id: "admin", name: "Admin", icon: Shield, tint: "from-[#c6a15a] to-[#8a6428]" },
 ]
 
 const INITIAL_CELLS: Record<AppId, Cell> = {
@@ -46,12 +49,13 @@ const INITIAL_CELLS: Record<AppId, Cell> = {
   notes: { col: 0, row: 3 },
   trash: { col: 0, row: 4 },
   patreon: { col: 1, row: 0 },
+  admin: { col: 1, row: 1 },
 }
 
 const app = (id: AppId) => APPS.find((item) => item.id === id) ?? APPS[0]
 
 function isWorkspace(id: AppId) {
-  return id === "browser" || id === "patreon"
+  return id === "browser" || id === "patreon" || id === "admin"
 }
 
 const TASKBAR = 48
@@ -162,6 +166,14 @@ function Desktop({ active, scale, onLeave }: { active: boolean; scale: number; o
   const top = useRef(1)
   const now = useClock(active)
   const menuOpen = menu && active
+  const library = useLibrary()
+  const apps = library.admin ? APPS : APPS.filter((item) => item.id !== "admin")
+
+  useEffect(() => {
+    if (library.admin) return
+    setWindows((list) => list.filter((win) => win.app !== "admin"))
+    setSelected((id) => (id === "admin" ? null : id))
+  }, [library.admin])
 
   const size = () => {
     const el = area.current
@@ -244,7 +256,7 @@ function Desktop({ active, scale, onLeave }: { active: boolean; scale: number; o
       setCells((current) => {
         const from = current[id]
         const next = { ...current, [id]: { col, row } }
-        const other = APPS.find((item) => item.id !== id && current[item.id].col === col && current[item.id].row === row)
+        const other = apps.find((item) => item.id !== id && current[item.id].col === col && current[item.id].row === row)
         if (other) next[other.id] = from
         return next
       })
@@ -281,7 +293,7 @@ function Desktop({ active, scale, onLeave }: { active: boolean; scale: number; o
           setMenu(false)
         }}
       >
-        {APPS.map((item) => {
+        {apps.map((item) => {
           const cell = cells[item.id]
           const dragging = drag?.app === item.id
           const Icon = item.icon
@@ -344,7 +356,7 @@ function Desktop({ active, scale, onLeave }: { active: boolean; scale: number; o
           />
         ))}
 
-        {menuOpen && <StartMenu onOpen={openApp} onLeave={onLeave} />}
+        {menuOpen && <StartMenu apps={apps} onOpen={openApp} onLeave={onLeave} />}
       </div>
 
       <Taskbar
@@ -525,7 +537,7 @@ function AppWindow({
       </header>
       {workspace ? (
         <div className="min-h-0 flex-1">
-          {win.app === "browser" ? <Browser active={focused && !win.minimized} /> : <Patreon />}
+          {win.app === "browser" ? <Browser active={focused && !win.minimized} /> : win.app === "admin" ? <AdminDesk /> : <Patreon />}
         </div>
       ) : (
         <div className="flex flex-col items-center gap-3 px-6 pt-7 pb-8 text-center">
@@ -574,7 +586,15 @@ function AppWindow({
   )
 }
 
-function StartMenu({ onOpen, onLeave }: { onOpen: (id: AppId) => void; onLeave: () => void }) {
+function StartMenu({
+  apps,
+  onOpen,
+  onLeave,
+}: {
+  apps: { id: AppId; name: string; icon: AppIcon; tint: string }[]
+  onOpen: (id: AppId) => void
+  onLeave: () => void
+}) {
   return (
     <div
       role="menu"
@@ -590,7 +610,7 @@ function StartMenu({ onOpen, onLeave }: { onOpen: (id: AppId) => void; onLeave: 
         </div>
       </div>
       <div className="flex flex-col p-1.5">
-        {APPS.map((item) => {
+        {apps.map((item) => {
           const Icon = item.icon
           return (
             <button
