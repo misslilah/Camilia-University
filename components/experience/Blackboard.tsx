@@ -207,12 +207,12 @@ function ChapterPage({
       </Text>
       <Text
         font={CHALK_FONT}
-        position={[0, 0.28, 0]}
-        fontSize={0.2}
+        position={[0, 0.02, 0]}
+        fontSize={0.34}
         maxWidth={4.6}
         color="#f4efe4"
         anchorX="center"
-        anchorY="top"
+        anchorY="middle"
         lineHeight={1.28}
         textAlign="center"
       >

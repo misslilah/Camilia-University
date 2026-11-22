@@ -269,25 +269,25 @@ export const CHAPTERS: Chapter[] = [
     id: "cours",
     numeral: "01",
     title: "Courses",
-    body: "Three faculties share this hall.\nLetters: translation, writing, reading aloud.\nLife sciences: morning lectures, practicals.\nArts: history of the image, studio, stage.",
+    body: "Coming soon",
   },
   {
     id: "examinations",
     numeral: "02",
     title: "Examinations",
-    body: "Two sittings remain this term.\nMidterms: 18 March, Amphitheater I.\nFinals: 4 June, Room C, west wing.\nArrive ten minutes before the hour.",
+    body: "Coming soon",
   },
   {
     id: "records",
     numeral: "03",
     title: "Academic Records",
-    body: "Autumn term results.\nLetters — 16/20.\nLife sciences — 14/20.\nArts — 15/20.\nProgress: you may enter the spring session.",
+    body: "Coming soon",
   },
   {
     id: "materials",
     numeral: "04",
     title: "Study Materials",
-    body: "Documents for the term, ready to open.\nSyllabus: the three faculties, week by week.\nLecture notes: mornings of the last month.\nReading list: the winter selection.",
+    body: "Coming soon",
   },
 ]
 
