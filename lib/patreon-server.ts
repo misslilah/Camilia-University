@@ -871,8 +871,23 @@ async function memberLinks() {
   })
 }
 
+function sameSiteRead(request: Request) {
+  const site = request.headers.get("sec-fetch-site")
+  if (site === "cross-site") return false
+  const origin = request.headers.get("origin")
+  if (!origin) return true
+  try {
+    const host = new URL(origin).host
+    const forwarded = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ?? ""
+    const hostHeader = request.headers.get("host")?.trim() ?? ""
+    return host === forwarded || host === hostHeader || host === new URL(request.url).host || host === new URL(requestOrigin(request)).host
+  } catch {
+    return false
+  }
+}
+
 export async function studentRoster(request: NextRequest) {
-  if (crossSite(request)) return apiJson({ error: "The request was refused." }, 403)
+  if (!sameSiteRead(request)) return apiJson({ error: "The request was refused." }, 403)
   const loaded = await currentSession(request, false)
   if (loaded.kind !== "session" || !loaded.session.isAdmin) return apiJson({ error: "Only the creator can open the student list." }, 403)
   const users = await listAuthUsers()

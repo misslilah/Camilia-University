@@ -28,9 +28,10 @@ function joinedOn(value: string) {
   return date.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })
 }
 
-function Students() {
+function StudentList() {
   const [rows, setRows] = useState<StudentRow[] | null>(null)
   const [error, setError] = useState("")
+  const [query, setQuery] = useState("")
 
   useEffect(() => {
     let gone = false
@@ -48,37 +49,61 @@ function Students() {
     }
   }, [])
 
+  const needle = query.trim().toLowerCase()
+  const shown = (rows ?? []).filter((student) => {
+    if (!needle) return true
+    return `${student.name} ${student.email} ${student.tier}`.toLowerCase().includes(needle)
+  })
+
   return (
-    <section>
-      <h3 className="font-serif text-xl text-[#1d2a4a]">Students</h3>
-      <p className="mt-1 text-sm text-[#1d2433]/65">Everyone who enrolled, with the Patreon tier linked to that account.</p>
-      {error ? (
-        <p className="mt-2 text-sm text-[#8d2b2b]">{error}</p>
-      ) : rows == null ? (
-        <p className="mt-2 text-sm text-[#1d2433]/65">Opening the student list…</p>
-      ) : rows.length === 0 ? (
-        <p className="mt-2 text-sm text-[#1d2433]/65">No one has enrolled yet.</p>
-      ) : (
-        <ul className="mt-2 flex flex-col gap-2">
-          {rows.map((student) => {
-            const joined = joinedOn(student.joinedAt)
-            const connected = student.tier !== "Patreon not connected"
-            return (
-              <li key={student.id} className="flex items-start justify-between gap-3 rounded-xl bg-white px-4 py-3 text-sm">
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-[#1d2a4a]">{student.name}</p>
-                  <p className="truncate text-xs text-[#1d2433]/55">
-                    {student.email}
-                    {joined ? ` · ${joined}` : ""}
-                  </p>
-                </div>
-                <p className={`shrink-0 text-right text-xs font-semibold ${connected ? "text-[#1d2a4a]" : "text-[#1d2433]/45"}`}>{student.tier}</p>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-    </section>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 px-6 pt-4">
+        <label className="flex flex-col gap-1 text-xs text-[#8a7044]">
+          Find a student
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Name, email, or tier"
+            className="h-9 rounded-lg border border-[#e6d9c6] bg-white px-3 text-sm text-[#1d2a4a] outline-none focus-visible:ring-2 focus-visible:ring-[#c6a15a]"
+          />
+        </label>
+        {rows != null && !error && (
+          <p className="mt-2 text-xs text-[#1d2433]/55">
+            {shown.length} of {rows.length}
+          </p>
+        )}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-3">
+        {error ? (
+          <p className="text-sm text-[#8d2b2b]">{error}</p>
+        ) : rows == null ? (
+          <p className="text-sm text-[#1d2433]/65">Opening the student list…</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-[#1d2433]/65">No one has enrolled yet.</p>
+        ) : shown.length === 0 ? (
+          <p className="text-sm text-[#1d2433]/65">No student matches that search.</p>
+        ) : (
+          <ul className="flex flex-col gap-2 pb-2">
+            {shown.map((student) => {
+              const joined = joinedOn(student.joinedAt)
+              const connected = student.tier !== "Patreon not connected"
+              return (
+                <li key={student.id} className="flex items-start justify-between gap-3 rounded-xl bg-white px-4 py-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-[#1d2a4a]">{student.name}</p>
+                    <p className="truncate text-xs text-[#1d2433]/55">
+                      {student.email}
+                      {joined ? ` · ${joined}` : ""}
+                    </p>
+                  </div>
+                  <p className={`shrink-0 text-right text-xs font-semibold ${connected ? "text-[#1d2a4a]" : "text-[#1d2433]/45"}`}>{student.tier}</p>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -137,17 +162,33 @@ export function AdminDesk() {
   const audios = files.filter((item) => item.kind === "audio")
   const tiers = library.tiers ?? []
   const previewId = useSyncExternalStore(subscribePreview, previewTierId, () => null)
+  const [studentsOpen, setStudentsOpen] = useState(false)
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#f6f1e8] text-[#1c2433]">
       <div className="shrink-0 border-b border-[#e6d9c6] px-6 py-5">
         <p className="text-[11px] tracking-[0.42em] text-[#8a7044]">REGISTRAR</p>
-        <h2 className="mt-1 font-serif text-3xl leading-none text-[#1d2a4a]">Admin</h2>
+        <div className="mt-1 flex items-center justify-between gap-3">
+          <h2 className="font-serif text-3xl leading-none text-[#1d2a4a]">{studentsOpen ? "Students" : "Admin"}</h2>
+          {studentsOpen && (
+            <button
+              type="button"
+              onClick={() => setStudentsOpen(false)}
+              className="h-8 shrink-0 rounded-full bg-[#1d2a4a] px-3 text-[12px] font-semibold text-[#f6f1e8]"
+            >
+              Back
+            </button>
+          )}
+        </div>
         <p className="mt-2 max-w-xl text-sm text-[#1d2433]/70">
-          This desk is on your computer only. Students do not see the icon, in the start menu or on the desktop.
+          {studentsOpen
+            ? "Everyone who enrolled, with the Patreon tier linked to that account."
+            : "This desk is on your computer only. Students do not see the icon, in the start menu or on the desktop."}
         </p>
       </div>
-      {!library.ready ? (
+      {studentsOpen && library.ready ? (
+        <StudentList />
+      ) : !library.ready ? (
         <p className="px-6 py-10 text-sm text-[#1d2433]/60">Opening the registrar…</p>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
@@ -166,9 +207,17 @@ export function AdminDesk() {
               </div>
             ))}
           </div>
-          <div className="mt-6">
-            <Students />
-          </div>
+          <button
+            type="button"
+            onClick={() => setStudentsOpen(true)}
+            className="mt-6 flex w-full items-center justify-between gap-3 rounded-2xl bg-[#1d2a4a] px-4 py-3 text-left text-[#f6f1e8]"
+          >
+            <span>
+              <span className="block font-serif text-xl leading-none">Students</span>
+              <span className="mt-1 block text-xs text-[#f6f1e8]/70">Enrollment and Patreon tiers</span>
+            </span>
+            <span className="text-[12px] font-semibold">Open</span>
+          </button>
           <section className="mt-6">
             <h3 className="font-serif text-xl text-[#1d2a4a]">Tiers</h3>
             <p className="mt-1 text-sm text-[#1d2433]/65">Choose a tier, then open Patreon. The library shows what that tier can play.</p>
