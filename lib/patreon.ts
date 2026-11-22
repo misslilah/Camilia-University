@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react"
 import { MAX_UPLOAD_BYTES, sampleLibrary, storageLimitMessage, tierById, tooLargeMessage, type LibraryItem, type LibraryStatus, type MediaKind } from "@/lib/patreon-access"
+import { resumableHeaders } from "@/lib/resumable"
 
 export type { LibraryItem, LibraryStatus, MediaKind }
 
@@ -156,7 +157,10 @@ function isTicket(value: unknown): value is UploadTicket {
 
 function uploadFailure(error: unknown) {
   const text = error instanceof Error ? error.message : ""
-  if (/size|413|entity too large|maximum/i.test(text)) return storageLimitMessage()
+  const response = error && typeof error === "object" && "originalResponse" in error ? (error as { originalResponse?: { getStatus?: () => number; getBody?: () => string } }).originalResponse : null
+  const status = response?.getStatus?.() ?? 0
+  const body = response?.getBody?.() ?? ""
+  if (status === 413 || /size|413|entity too large|maximum|payload/i.test(`${text} ${body}`)) return storageLimitMessage()
   return ""
 }
 
@@ -167,12 +171,7 @@ function sendToStorage(file: File, ticket: UploadTicket, onProgress: (sent: numb
         const upload = new Upload(file, {
           endpoint: ticket.endpoint,
           retryDelays: [0, 3000, 5000, 10000, 20000],
-          headers: {
-            authorization: `Bearer ${ticket.token}`,
-            "x-signature": ticket.token,
-            apikey: ticket.apikey,
-            "x-upsert": "true",
-          },
+          headers: resumableHeaders(ticket.token, ticket.apikey),
           uploadDataDuringCreation: true,
           removeFingerprintOnSuccess: true,
           metadata: {

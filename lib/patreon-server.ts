@@ -931,7 +931,11 @@ export async function uploadMedia(request: NextRequest) {
   }
   if (!body.id || !MEDIA_ID.test(body.id)) return apiJson({ error: "Choose a file to upload." }, 400)
   const path = mediaPath(body.id)
-  const stored = await objectSize(path)
+  let stored = await objectSize(path)
+  for (let attempt = 0; stored !== meta.size && attempt < 3; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    stored = await objectSize(path)
+  }
   if (stored == null || stored !== meta.size) {
     if (stored != null) await deleteObject(path)
     return apiJson({ error: stored != null && stored > MAX_UPLOAD_BYTES ? storageLimitMessage() : `"${meta.name}" could not be saved.` }, 503)

@@ -1,4 +1,5 @@
 import { MAX_UPLOAD_BYTES } from "@/lib/patreon-access"
+import { resumableEndpoint } from "@/lib/resumable"
 import { properName } from "@/lib/student-name"
 
 // Server-only Supabase client. The service role never reaches the browser.
@@ -212,8 +213,7 @@ export async function signedUpload(path: string): Promise<DirectUpload | null> {
     }
   }
   if (!token) return null
-  const endpoint = `${ready.config.url.replace(".supabase.co", ".storage.supabase.co")}/storage/v1/upload/resumable`
-  return { token, endpoint, bucket: BUCKET, path, apikey: ready.config.anonKey }
+  return { token, endpoint: resumableEndpoint(ready.config.url), bucket: BUCKET, path, apikey: ready.config.anonKey }
 }
 
 export async function signedDownloadUrl(path: string, expiresIn: number) {
@@ -243,9 +243,29 @@ export async function objectSize(path: string) {
   const probe = await fetch(url, { headers: { ...ready.headers, Range: "bytes=0-0" } })
   const range = probe.headers.get("content-range") ?? ""
   await probe.body?.cancel().catch(() => undefined)
-  if (!probe.ok && probe.status !== 206) return null
-  const match = /\/(\d+)$/.exec(range)
-  return match ? Number(match[1]) : null
+  if (probe.ok || probe.status === 206) {
+    const match = /\/(\d+)$/.exec(range)
+    if (match) return Number(match[1])
+  }
+  return listedSize(path, ready)
+}
+
+async function listedSize(path: string, ready: { config: SupabaseConfig; headers: Record<string, string> }) {
+  const slash = path.lastIndexOf("/")
+  const prefix = slash >= 0 ? path.slice(0, slash + 1) : ""
+  const name = slash >= 0 ? path.slice(slash + 1) : path
+  const response = await fetch(`${ready.config.url}/storage/v1/object/list/${BUCKET}`, {
+    method: "POST",
+    headers: { ...ready.headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ prefix, limit: 100, search: name }),
+  })
+  if (!response.ok) return null
+  const rows = (await response.json().catch(() => null)) as { name?: string; metadata?: { size?: unknown } }[] | null
+  const row = Array.isArray(rows) ? rows.find((item) => item.name === name) : null
+  const size = row?.metadata?.size
+  if (typeof size === "number" && Number.isFinite(size)) return size
+  if (typeof size === "string" && /^\d+$/.test(size)) return Number(size)
+  return null
 }
 
 export async function uploadObject(path: string, body: Buffer, contentType: string) {
