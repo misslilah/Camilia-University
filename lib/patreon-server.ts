@@ -3,18 +3,21 @@ import { NextResponse, type NextRequest } from "next/server"
 import { dbQuery, databaseUrl, logDatabaseError } from "@/lib/db"
 import {
   listLibraryMedia,
+  loadCampaignCatalog,
   loadLibraryMedia,
   loadLibrarySession,
   putLibraryMedia,
   removeLibraryMedia,
   removeLibrarySession,
   removeUserSession,
+  storeCampaignCatalog,
   storeLibrarySession,
   type LibraryMedia,
   type LibrarySession,
 } from "@/lib/library-store"
 import { deleteObject, mediaPath, objectSize, signedDownloadUrl, signedUpload, supabaseConfig } from "@/lib/supabase"
 import {
+  campaignPage,
   entitledTo,
   isCampaignCreator,
   membershipNotice,
@@ -399,6 +402,14 @@ async function loadIdentity(accessToken: string, campaignId: string) {
   return parseIdentity(await readJson(response), campaignId)
 }
 
+function vanityOf(campaign: Resource) {
+  const raw = campaign.attributes?.vanity
+  if (typeof raw !== "string") return null
+  const vanity = raw.trim()
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(vanity)) return null
+  return vanity
+}
+
 function tiersOf(campaign: Resource, included: Map<string, Resource>): CampaignTier[] {
   const tiers = relMany(campaign, "tiers").flatMap((tierId) => {
     const tier = included.get(`tier:${tierId}`)
@@ -415,6 +426,7 @@ async function loadCampaign(accessToken: string, campaignId: string) {
   url.searchParams.set("include", "tiers,creator")
   url.searchParams.set("fields[tier]", "title,amount_cents")
   url.searchParams.set("fields[user]", "full_name")
+  url.searchParams.set("fields[campaign]", "vanity")
   const response = await patreonGet(url.toString(), accessToken)
   if (!response.ok) {
     console.error("patreon campaign failed", response.status)
@@ -424,23 +436,24 @@ async function loadCampaign(accessToken: string, campaignId: string) {
   const data = asResource(body && typeof body === "object" ? (body as { data?: unknown }).data : null)
   if (!data) return null
   const included = includedMap(body)
-  return { creatorId: relOne(data, "creator"), tiers: tiersOf(data, included) }
+  return { creatorId: relOne(data, "creator"), tiers: tiersOf(data, included), vanity: vanityOf(data) }
 }
 
-type CreatorAccess = { owns: boolean; tiers: CampaignTier[]; ownedIds: string[] }
+type CreatorAccess = { owns: boolean; tiers: CampaignTier[]; ownedIds: string[]; vanity: string | null }
 
 async function loadCreatorAccess(accessToken: string, campaignId: string, userId: string): Promise<CreatorAccess | null> {
   const url = new URL("https://www.patreon.com/api/oauth2/v2/campaigns")
   url.searchParams.set("include", "tiers,creator")
   url.searchParams.set("fields[tier]", "title,amount_cents")
   url.searchParams.set("fields[user]", "full_name")
+  url.searchParams.set("fields[campaign]", "vanity")
   const response = await patreonGet(url.toString(), accessToken)
   if (!response.ok) {
     console.error("patreon campaigns failed", response.status)
     const single = await loadCampaign(accessToken, campaignId).catch(() => null)
     if (!single?.creatorId) return null
     const owns = sameId(single.creatorId, userId)
-    return { owns, tiers: single.tiers, ownedIds: owns ? [campaignId] : [] }
+    return { owns, tiers: single.tiers, ownedIds: owns ? [campaignId] : [], vanity: single.vanity }
   }
   const body = await readJson(response)
   const data = body && typeof body === "object" ? (body as { data?: unknown }).data : null
@@ -448,19 +461,42 @@ async function loadCreatorAccess(accessToken: string, campaignId: string, userId
   const list = Array.isArray(data) ? data.flatMap((item) => asResource(item) ?? []) : asResource(data) ? [asResource(data)!] : []
   const ownedIds: string[] = []
   let matched: CampaignTier[] | null = null
+  let vanity: string | null = null
   for (const campaign of list) {
     const id = idText(campaign.id)
     if (!id || ownedIds.includes(id)) continue
     ownedIds.push(id)
     if (!sameId(id, campaignId)) continue
     matched = tiersOf(campaign, included)
+    vanity = vanityOf(campaign)
   }
-  if (matched && matched.length === 0) {
+  if (matched && (matched.length === 0 || !vanity)) {
     const single = await loadCampaign(accessToken, campaignId).catch(() => null)
     if (single && single.tiers.length > 0) matched = single.tiers
+    if (single?.vanity) vanity = single.vanity
   }
   if (ownedIds.length === 0) return null
-  return { owns: matched != null, tiers: matched ?? [], ownedIds }
+  return { owns: matched != null, tiers: matched ?? [], ownedIds, vanity }
+}
+
+const KNOWN_VANITY: Record<string, string> = { "13705958": "CamiliaTells" }
+
+function resolvedVanity(campaignId: string, vanity: string | null) {
+  if (vanity) return vanity
+  return KNOWN_VANITY[campaignId] ?? null
+}
+
+async function rememberCatalog(campaignId: string, access: CreatorAccess | null) {
+  if (!supabaseConfig() || !access?.owns) return
+  const vanity = resolvedVanity(campaignId, access.vanity)
+  if (!vanity || access.tiers.length === 0) return
+  await storeCampaignCatalog({ vanity, tiers: access.tiers })
+}
+
+async function publishedCatalog(campaignId: string) {
+  if (!supabaseConfig()) return { vanity: resolvedVanity(campaignId, null), tiers: null as CampaignTier[] | null }
+  const stored = await loadCampaignCatalog().catch(() => null)
+  return { vanity: resolvedVanity(campaignId, stored?.vanity ?? null), tiers: stored?.tiers ?? null }
 }
 
 function recordsReady() {
@@ -682,7 +718,7 @@ async function listMedia() {
   return result?.rows ?? null
 }
 
-function guestStatus(expired: boolean): LibraryStatus {
+function guestStatus(expired: boolean, page: string | null): LibraryStatus {
   return {
     configured: true,
     connected: false,
@@ -691,6 +727,8 @@ function guestStatus(expired: boolean): LibraryStatus {
     tierTitle: null,
     notice: expired ? "The Patreon session expired. Connect again." : "Connect with Patreon to see the files your membership includes.",
     tiers: null,
+    entitled: null,
+    page,
     items: [],
   }
 }
@@ -708,10 +746,15 @@ export async function libraryStatus(request: NextRequest) {
       tierTitle: null,
       notice: supabaseConfig() ? "Supabase storage could not be opened." : "Supabase is not configured on this server.",
       tiers: null,
+      entitled: null,
+      page: null,
       items: [],
     } satisfies LibraryStatus)
   }
-  if (loaded.kind === "guest") return apiJson(guestStatus(loaded.expired))
+  if (loaded.kind === "guest") {
+    const published = await publishedCatalog(loaded.config.campaignId)
+    return apiJson(guestStatus(loaded.expired, campaignPage(published.vanity)))
+  }
   let rows: MediaRow[] | null = null
   try {
     rows = await listMedia()
@@ -728,12 +771,18 @@ export async function libraryStatus(request: NextRequest) {
       tierTitle: loaded.session.tierTitle,
       notice: "Supabase storage could not be opened.",
       tiers: null,
+      entitled: loaded.session.entitled,
+      page: null,
       items: [],
     } satisfies LibraryStatus)
   }
   const active = loaded.session.patronStatus === "active_patron"
   const access = await loadCreatorAccess(loaded.session.accessToken, loaded.config.campaignId, loaded.session.patreonUserId).catch(() => null)
-  const tiers = loaded.session.isAdmin && access?.owns ? access.tiers : null
+  if (loaded.session.isAdmin) await rememberCatalog(loaded.config.campaignId, access).catch((error: unknown) => logDatabaseError(error))
+  const published = await publishedCatalog(loaded.config.campaignId)
+  const liveTiers = loaded.session.isAdmin && access?.owns ? access.tiers : null
+  const tiers = liveTiers && liveTiers.length > 0 ? liveTiers : published.tiers && published.tiers.length > 0 ? published.tiers : liveTiers
+  const vanity = (access?.owns ? access.vanity : null) ?? published.vanity
   const notice = membershipNotice({
     admin: loaded.session.isAdmin,
     active,
@@ -748,6 +797,8 @@ export async function libraryStatus(request: NextRequest) {
     tierTitle: loaded.session.tierTitle,
     notice,
     tiers,
+    entitled: loaded.session.entitled,
+    page: campaignPage(vanity),
     items: visibleItems(loaded.session, rows),
   }
   return apiJson(body)
@@ -784,6 +835,7 @@ export async function finishLogin(request: NextRequest) {
   if (!identity) return redirectTo(request, "/?patreon=error&reason=identity", [clearState])
   const access = await loadCreatorAccess(token.accessToken, config.campaignId, identity.userId).catch(() => null)
   const admin = decideAdmin(identity, config.campaignId, access)
+  if (admin) await rememberCatalog(config.campaignId, access).catch((error: unknown) => logDatabaseError(error))
   const id = randomBytes(32).toString("hex")
   try {
     if (supabaseConfig()) await removeUserSession(identity.userId)

@@ -313,6 +313,20 @@ export function deleteMedia(id: string) {
   })
 }
 
+export function refreshMembership() {
+  return enqueue(async () => {
+    await ensureLoaded()
+    const fresh = await readStatus().catch(() => null)
+    if (!fresh) {
+      state = { ...state, error: "The membership could not be refreshed." }
+      emit()
+      return
+    }
+    state = { ...fresh.status, ready: true, error: fresh.error, progress: null }
+    emit()
+  })
+}
+
 export function disconnectPatreon() {
   return enqueue(async () => {
     await ensureLoaded()

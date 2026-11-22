@@ -35,6 +35,8 @@ export type LibraryStatus = {
   tierTitle: string | null
   notice: string | null
   tiers: CampaignTier[] | null
+  entitled: EntitledTier[] | null
+  page: string | null
   items: LibraryItem[]
 }
 
@@ -105,6 +107,8 @@ export function sampleLibrary(): LibraryStatus {
     tierTitle: null,
     notice: "Sample library. These are examples, not subscriber files.",
     tiers: null,
+    entitled: null,
+    page: null,
     items: SAMPLES,
   }
 }
@@ -181,6 +185,61 @@ export function arrangeLibrary(items: LibraryItem[], sort: LibrarySort, tierTitl
     if (tier !== 0) return tier
     return a.name.localeCompare(b.name)
   })
+}
+
+export type TierOffer = {
+  id: string
+  title: string
+  amountCents: number | null
+  href: string
+}
+
+const VANITY = /^[A-Za-z0-9_-]{1,80}$/
+const TIER_ID = /^\d{1,20}$/
+
+export function campaignPage(vanity: string | null) {
+  const page = vanity?.trim() ?? ""
+  if (!VANITY.test(page)) return null
+  return `https://www.patreon.com/cw/${page}`
+}
+
+export function vanityFromPage(page: string | null) {
+  if (!page) return null
+  try {
+    const url = new URL(page)
+    if (url.origin !== "https://www.patreon.com") return null
+    const parts = url.pathname.split("/").filter((part) => part.length > 0)
+    const slug = parts[0] === "cw" || parts[0] === "c" ? parts[1] : parts[0]
+    if (!slug || !VANITY.test(slug)) return null
+    return slug
+  } catch {
+    return null
+  }
+}
+
+export function checkoutHref(vanity: string, tierId: string) {
+  const page = vanity.trim()
+  const id = tierId.trim()
+  if (!VANITY.test(page) || !TIER_ID.test(id)) return null
+  return `https://www.patreon.com/checkout/${page}?rid=${id}`
+}
+
+export function upgradeChoices(tiers: CampaignTier[], entitled: EntitledTier[], vanity: string | null): TierOffer[] {
+  if (!vanity) return []
+  const amounts = entitled.flatMap((tier) => (tier.amountCents == null ? [] : [tier.amountCents]))
+  const ceiling = amounts.length > 0 ? Math.max(...amounts) : null
+  const titles = new Set(entitled.map((tier) => tier.title.trim()).filter((title) => title.length > 0))
+  const offers: TierOffer[] = []
+  for (const tier of tiers) {
+    if (tier.amountCents == null || tier.amountCents <= 0) continue
+    if (ceiling != null && tier.amountCents <= ceiling) continue
+    if (ceiling == null && titles.has(tier.title.trim())) continue
+    const href = checkoutHref(vanity, tier.id)
+    if (!href) continue
+    offers.push({ id: tier.id, title: tier.title, amountCents: tier.amountCents, href })
+  }
+  offers.sort((a, b) => (a.amountCents ?? 0) - (b.amountCents ?? 0) || a.title.localeCompare(b.title))
+  return offers
 }
 
 export function tierOptionLabel(tier: CampaignTier) {

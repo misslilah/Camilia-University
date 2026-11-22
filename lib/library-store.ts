@@ -1,4 +1,4 @@
-import type { EntitledTier } from "@/lib/patreon-access"
+import type { CampaignTier, EntitledTier } from "@/lib/patreon-access"
 import { deleteObject, listObjects, readObject, uploadObject } from "@/lib/supabase"
 
 export type LibrarySession = {
@@ -169,4 +169,30 @@ export async function listLibraryMedia() {
 
 export async function removeLibraryMedia(id: string) {
   return deleteObject(mediaPath(id))
+}
+
+const CATALOG_PATH = "patreon/catalog.json"
+
+export async function storeCampaignCatalog(catalog: { vanity: string; tiers: CampaignTier[] }) {
+  return writeJson(CATALOG_PATH, { vanity: catalog.vanity, tiers: catalog.tiers })
+}
+
+export async function loadCampaignCatalog() {
+  const value = await readJson(CATALOG_PATH)
+  if (value === undefined) return undefined
+  if (!value || typeof value !== "object") return null
+  const row = value as Record<string, unknown>
+  const vanity = text(row.vanity).trim()
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(vanity) || !Array.isArray(row.tiers)) return null
+  const tiers: CampaignTier[] = []
+  for (const item of row.tiers) {
+    if (!item || typeof item !== "object") continue
+    const tier = item as Record<string, unknown>
+    const id = text(tier.id).trim()
+    const title = text(tier.title).trim()
+    if (!/^\d{1,20}$/.test(id) || !title) continue
+    const amount = typeof tier.amountCents === "number" && Number.isFinite(tier.amountCents) ? Math.round(tier.amountCents) : null
+    tiers.push({ id, title, amountCents: amount })
+  }
+  return { vanity, tiers }
 }

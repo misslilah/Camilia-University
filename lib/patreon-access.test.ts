@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { arrangeLibrary, entitledTo, isCampaignCreator, membershipNotice, sameId, tierById, tierChoices, tierLabel, tierOptionLabel, tooLargeMessage, viewAsTier, type LibraryItem } from "./patreon-access.ts"
+import { arrangeLibrary, campaignPage, checkoutHref, entitledTo, isCampaignCreator, membershipNotice, sameId, tierById, tierChoices, tierLabel, tierOptionLabel, tooLargeMessage, upgradeChoices, vanityFromPage, viewAsTier, type LibraryItem } from "./patreon-access.ts"
 
 const studio = { id: "studio", title: "Studio", amountCents: 800 }
 const listeners = { id: "listeners", title: "Listeners", amountCents: 300 }
@@ -62,6 +62,23 @@ test("a tier preview locks files above that amount", () => {
   assert.deepEqual(arranged.map((item) => item.name), ["Note", "Clip"])
   assert.deepEqual(arrangeLibrary([file, lower], "newest", "Studio").map((item) => item.id), ["clip"])
   assert.deepEqual(tierChoices([file, lower]).map((tier) => tier.title), ["Listeners", "Studio"])
+})
+
+test("an upgrade link only offers tiers above the current amount", () => {
+  assert.equal(campaignPage("CamiliaTells"), "https://www.patreon.com/cw/CamiliaTells")
+  assert.equal(campaignPage("bad slug"), null)
+  assert.equal(vanityFromPage("https://www.patreon.com/cw/CamiliaTells"), "CamiliaTells")
+  assert.equal(vanityFromPage("https://example.com/cw/CamiliaTells"), null)
+  assert.equal(checkoutHref("CamiliaTells", "25401178"), "https://www.patreon.com/checkout/CamiliaTells?rid=25401178")
+  assert.equal(checkoutHref("CamiliaTells", "nope"), null)
+  const inner = { id: "25401217", title: "Inner", amountCents: 1500 }
+  const tiers = [{ ...listeners, id: "25224332" }, { ...studio, id: "25401178" }, inner]
+  assert.deepEqual(
+    upgradeChoices(tiers, [listeners], "CamiliaTells").map((offer) => offer.title),
+    ["Studio", "Inner"],
+  )
+  assert.deepEqual(upgradeChoices(tiers, [studio], "CamiliaTells").map((offer) => offer.id), ["25401217"])
+  assert.deepEqual(upgradeChoices(tiers, [inner], "CamiliaTells"), [])
 })
 
 test("an upload can only name a tier returned for the creator", () => {

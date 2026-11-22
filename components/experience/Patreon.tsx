@@ -3,9 +3,9 @@
 import { useEffect, useState, useSyncExternalStore } from "react"
 import { createPortal } from "react-dom"
 import { Play, Trash2, Upload, X } from "lucide-react"
-import { clearLibraryError, deleteMedia, disconnectPatreon, uploadFiles, useLibrary, type LibraryItem, type MediaKind } from "@/lib/patreon"
+import { clearLibraryError, deleteMedia, disconnectPatreon, refreshMembership, uploadFiles, useLibrary, type LibraryItem, type MediaKind } from "@/lib/patreon"
 import { holdStage } from "@/lib/stage"
-import { arrangeLibrary, tierChoices, tierOptionLabel, viewAsTier, type LibrarySort } from "@/lib/patreon-access"
+import { arrangeLibrary, tierChoices, tierOptionLabel, upgradeChoices, vanityFromPage, viewAsTier, type LibrarySort } from "@/lib/patreon-access"
 import { previewTierId, setPreviewTier, subscribePreview } from "@/lib/tier-view"
 import { cn } from "@/lib/utils"
 
@@ -182,6 +182,8 @@ export function Patreon() {
   const [playing, setPlaying] = useState<string | null>(null)
   const [tierFilter, setTierFilter] = useState<string | null>(null)
   const [sort, setSort] = useState<LibrarySort>("tier-up")
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const previewId = useSyncExternalStore(subscribePreview, previewTierId, () => null)
   const knownTiers = library.tiers ?? []
   const preview = library.admin ? knownTiers.find((tier) => tier.id === previewId) ?? null : null
@@ -192,6 +194,10 @@ export function Patreon() {
   const listed = arrangeLibrary(tabItems, sort, activeFilter)
   const film = viewed.find((item) => item.id === playing && item.kind === "video" && item.url && !item.locked) ?? null
   const selectedTier = knownTiers.find((tier) => tier.id === tierId) ?? null
+  const entitled = preview ? [{ id: preview.id, title: preview.title, amountCents: preview.amountCents }] : (library.entitled ?? [])
+  const offers = upgradeChoices(knownTiers, entitled, vanityFromPage(library.page))
+  const atTop = entitled.length > 0 && knownTiers.length > 0 && offers.length === 0
+  const upgradeLabel = !library.connected ? "Join on Patreon" : entitled.length > 0 ? "Upgrade tier" : "Choose a tier"
 
   const choose = (next: MediaKind) => {
     if (next === tab) return
@@ -233,8 +239,24 @@ export function Patreon() {
             <div className="flex flex-wrap items-center gap-2">
               {library.admin && !preview && <span className="rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-[#c2185b]">Creator</span>}
               {preview && <span className="rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-[#7a2450]">Viewing as {preview.title}</span>}
-              {library.tierTitle && (
+              {library.tierTitle && !preview && (
                 <span className="rounded-full bg-white/85 px-3 py-1 text-[12px] font-semibold text-[#7a2450]">Tier: {library.tierTitle}</span>
+              )}
+              {library.ready && library.configured && !(library.admin && !preview) && !atTop && (offers.length > 0 || library.page) && (
+                <button
+                  type="button"
+                  aria-expanded={offers.length > 0 ? upgradeOpen : undefined}
+                  onClick={() => {
+                    if (offers.length > 0) {
+                      setUpgradeOpen((open) => !open)
+                      return
+                    }
+                    if (library.page) window.open(library.page, "_blank", "noopener,noreferrer")
+                  }}
+                  className="inline-flex h-8 items-center rounded-full bg-white px-3 text-[12px] font-semibold text-[#c2185b] hover:bg-[#fff4f8] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+                >
+                  {preview ? `Upgrade from ${preview.title}` : upgradeLabel}
+                </button>
               )}
               <button
                 type="button"
@@ -245,12 +267,24 @@ export function Patreon() {
               </button>
             </div>
           ) : (
-            <a
-              href="/api/patreon/login"
-              className="inline-flex h-8 items-center rounded-full bg-white px-4 text-[13px] font-semibold text-[#c2185b] hover:bg-[#fff4f8] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
-            >
-              Connect with Patreon
-            </a>
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href="/api/patreon/login"
+                className="inline-flex h-8 items-center rounded-full bg-white px-4 text-[13px] font-semibold text-[#c2185b] hover:bg-[#fff4f8] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+              >
+                Connect with Patreon
+              </a>
+              {library.page && (
+                <a
+                  href={library.page}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-8 items-center rounded-full bg-white/85 px-3 text-[12px] font-semibold text-[#7a2450] hover:bg-white"
+                >
+                  Join on Patreon
+                </a>
+              )}
+            </div>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -329,6 +363,39 @@ export function Patreon() {
         <p role="alert" className="mx-5 mb-3 rounded-[16px] bg-[#fff0f5] px-4 py-2 text-sm text-[#8d2b2b]">
           {library.error}
         </p>
+      )}
+      {upgradeOpen && offers.length > 0 && !(library.admin && !preview) && (
+        <div className="mx-5 mb-3 rounded-[16px] bg-white px-4 py-3 text-sm text-[#5c2144]">
+          <p>Patreon takes the payment in a new tab. Come back and refresh the membership to unlock the new files.</p>
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {offers.map((offer) => (
+              <li key={offer.id}>
+                <a
+                  href={offer.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between rounded-xl bg-[#fff4f8] px-3 py-2 font-semibold hover:bg-[#ffe0ec]"
+                >
+                  <span>{offer.title}</span>
+                  <span>{offer.amountCents == null ? "" : (offer.amountCents / 100).toFixed(2)}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+          {library.connected && !preview && (
+            <button
+              type="button"
+              disabled={refreshing}
+              onClick={() => {
+                setRefreshing(true)
+                void refreshMembership().finally(() => setRefreshing(false))
+              }}
+              className="mt-2 text-[12px] font-semibold underline underline-offset-2 disabled:opacity-50"
+            >
+              {refreshing ? "Refreshing…" : "Refresh membership"}
+            </button>
+          )}
+        </div>
       )}
       {preview && (
         <div className="mx-5 mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[16px] bg-white px-4 py-2 text-sm text-[#5c2144]">
@@ -426,11 +493,27 @@ export function Patreon() {
                     )}
                   </div>
                   {item.locked ? (
-                    <p className="mt-2 text-sm text-[#8a3a60]">
-                      {item.sample
-                        ? "Locked sample. A subscriber who is not entitled to this tier sees the row this way."
-                        : `Locked. Your membership does not include the ${item.tierTitle} tier.`}
-                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <p className="text-sm text-[#8a3a60]">
+                        {item.sample
+                          ? "Locked sample. A subscriber who is not entitled to this tier sees the row this way."
+                          : `Locked. Your membership does not include the ${item.tierTitle} tier.`}
+                      </p>
+                      {!item.sample &&
+                        offers
+                          .filter((offer) => offer.title === item.tierTitle)
+                          .map((offer) => (
+                            <a
+                              key={offer.id}
+                              href={offer.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-semibold text-[#c2185b] underline underline-offset-2"
+                            >
+                              Upgrade to {item.tierTitle}
+                            </a>
+                          ))}
+                    </div>
                   ) : item.url && item.kind === "audio" ? (
                     <audio controls preload="metadata" src={item.url} aria-label={item.name} className="mt-3 h-10 w-full" />
                   ) : item.url ? (
