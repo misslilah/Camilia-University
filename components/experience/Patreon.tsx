@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Trash2, Upload } from "lucide-react"
-import { clearLibraryError, deleteMedia, disconnectPatreon, uploadFiles, useLibrary, type MediaKind } from "@/lib/patreon"
+import { Play, Trash2, Upload, X } from "lucide-react"
+import { clearLibraryError, deleteMedia, disconnectPatreon, uploadFiles, useLibrary, type LibraryItem, type MediaKind } from "@/lib/patreon"
 import { tierOptionLabel } from "@/lib/patreon-access"
 import { cn } from "@/lib/utils"
 
@@ -62,11 +62,52 @@ function emptyCopy(admin: boolean, tab: MediaKind, busy: boolean) {
   return "Nothing to play in this tab yet."
 }
 
+function VideoStage({ item, open, onOpen, onClose }: { item: LibraryItem; open: boolean; onOpen: () => void; onClose: () => void }) {
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        className="group mt-2 flex w-full items-center gap-3 rounded-[12px] bg-[#1a1020] px-3 py-2.5 text-left text-white transition-transform duration-200 hover:scale-[1.015] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[#c2185b] transition-transform duration-200 group-hover:scale-110">
+          <Play className="ml-0.5 h-4 w-4 fill-current" />
+        </span>
+        <span className="text-sm font-semibold">Play</span>
+      </button>
+    )
+  }
+  return (
+    <div className="video-zoom mt-2">
+      <div className="overflow-hidden rounded-[12px] bg-black shadow-[0_16px_36px_rgba(40,8,24,0.28)]">
+        <video
+          controls
+          autoPlay
+          playsInline
+          preload="metadata"
+          src={item.url ?? undefined}
+          aria-label={item.name}
+          className="aspect-video max-h-72 w-full bg-black object-contain"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-[#7a2450] underline decoration-[#7a2450]/40 underline-offset-2"
+      >
+        <X className="h-3.5 w-3.5" />
+        Close
+      </button>
+    </div>
+  )
+}
+
 export function Patreon() {
   const library = useLibrary()
   const [tab, setTab] = useState<MediaKind>("video")
   const [busy, setBusy] = useState(false)
   const [tierId, setTierId] = useState("")
+  const [playing, setPlaying] = useState<string | null>(null)
   const listed = library.items.filter((item) => item.kind === tab)
   const knownTiers = library.tiers ?? []
   const selectedTier = knownTiers.find((tier) => tier.id === tierId) ?? null
@@ -74,6 +115,7 @@ export function Patreon() {
   const choose = (next: MediaKind) => {
     if (next === tab) return
     clearLibraryError()
+    setPlaying(null)
     setTab(next)
   }
 
@@ -256,18 +298,9 @@ export function Patreon() {
                         : `Locked. Your membership does not include the ${item.tierTitle} tier.`}
                     </p>
                   ) : item.url && item.kind === "audio" ? (
-                    <audio controls preload="metadata" src={item.url} aria-label={item.name} className="mt-2 h-9 w-full rounded-[10px]" />
+                    <audio controls preload="metadata" src={item.url} aria-label={item.name} className="mt-3 h-10 w-full" />
                   ) : item.url ? (
-                    <div className="mt-2 overflow-hidden rounded-[10px] bg-black">
-                      <video
-                        controls
-                        playsInline
-                        preload="metadata"
-                        src={item.url}
-                        aria-label={item.name}
-                        className="max-h-40 w-full bg-black object-contain"
-                      />
-                    </div>
+                    <VideoStage item={item} open={playing === item.id} onOpen={() => setPlaying(item.id)} onClose={() => setPlaying(null)} />
                   ) : (
                     <p className="mt-2 text-sm text-[#8a3a60]">Sample. Nothing plays until the creator uploads a real file.</p>
                   )}

@@ -1,6 +1,7 @@
 "use client"
 
-import { useLibrary } from "@/lib/patreon"
+import { useState } from "react"
+import { renameMedia, useLibrary, type LibraryItem } from "@/lib/patreon"
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
@@ -15,6 +16,54 @@ function formatDate(ms: number) {
     month: "short",
     year: "numeric",
   })
+}
+
+function FileName({ item }: { item: LibraryItem }) {
+  const [draft, setDraft] = useState(item.name)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const next = draft.trim().replace(/\s+/g, " ")
+  const dirty = next.length > 0 && next !== item.name
+
+  const save = async () => {
+    if (!dirty || saving) return
+    setSaving(true)
+    setError("")
+    const message = await renameMedia(item.id, next)
+    setSaving(false)
+    if (message) setError(message)
+  }
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        void save()
+      }}
+      className="flex min-w-0 flex-1 flex-col gap-1"
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <input
+          value={draft}
+          onChange={(event) => {
+            setDraft(event.target.value)
+            setError("")
+          }}
+          aria-label={`Name for ${item.name}`}
+          maxLength={120}
+          className="h-9 min-w-0 flex-1 rounded-lg border border-[#e6d9c6] bg-[#f6f1e8] px-3 text-sm text-[#1d2a4a] outline-none focus-visible:ring-2 focus-visible:ring-[#c6a15a]"
+        />
+        <button
+          type="submit"
+          disabled={!dirty || saving}
+          className="h-9 shrink-0 rounded-full bg-[#1d2a4a] px-3 text-[12px] font-semibold text-[#f6f1e8] disabled:opacity-40"
+        >
+          {saving ? "Saving" : "Rename"}
+        </button>
+      </div>
+      {error && <p className="text-xs text-[#8d2b2b]">{error}</p>}
+    </form>
+  )
 }
 
 export function AdminDesk() {
@@ -74,9 +123,9 @@ export function AdminDesk() {
             ) : (
               <ul className="mt-2 flex flex-col gap-2">
                 {files.map((item) => (
-                  <li key={item.id} className="rounded-xl bg-white px-4 py-2.5">
-                    <p className="truncate text-sm font-medium">{item.name}</p>
-                    <p className="mt-0.5 text-xs text-[#1d2433]/55">
+                  <li key={item.id} className="rounded-xl bg-white px-4 py-3">
+                    <FileName key={item.name} item={item} />
+                    <p className="mt-1.5 text-xs text-[#1d2433]/55">
                       {item.kind === "audio" ? "Audio" : "Video"} · {item.tierTitle} · {formatSize(item.size)} · {formatDate(item.addedAt)}
                     </p>
                   </li>

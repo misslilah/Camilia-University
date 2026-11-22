@@ -271,6 +271,27 @@ export function uploadFiles(kind: MediaKind, files: File[], tierId: string) {
   })
 }
 
+export function renameMedia(id: string, name: string) {
+  return enqueue(async () => {
+    await ensureLoaded()
+    try {
+      const response = await fetch(`/api/patreon/media/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      })
+      if (!response.ok) return await errorMessage(response, "That name could not be saved.")
+      const fresh = await readStatus()
+      state = { ...fresh.status, ready: true, error: fresh.error, progress: null }
+      emit()
+      return null
+    } catch {
+      return "That name could not be saved."
+    }
+  })
+}
+
 export function deleteMedia(id: string) {
   return enqueue(async () => {
     await ensureLoaded()

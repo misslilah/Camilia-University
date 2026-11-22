@@ -980,6 +980,41 @@ export async function uploadMedia(request: NextRequest) {
   return apiJson({ id: body.id })
 }
 
+function titleName(value: unknown) {
+  if (typeof value !== "string") return ""
+  const base = value.trim().split(/[/\\]/).pop()?.trim() ?? ""
+  return base.replace(/[\u0000-\u001f]/g, "").replace(/\s+/g, " ").slice(0, 120)
+}
+
+export async function renameMedia(request: NextRequest, id: string) {
+  if (crossSite(request)) return apiJson({ error: "The request was refused." }, 403)
+  if (!MEDIA_ID.test(id)) return apiJson({ error: "That file was not found." }, 404)
+  if (!patreonConfig()) return apiJson({ error: "Patreon is not configured yet." }, 503)
+  const loaded = await currentSession(request, false)
+  if (loaded.kind === "database") return apiJson({ error: "The library could not be opened." }, 503)
+  if (loaded.kind !== "session" || !loaded.session.isAdmin) return apiJson({ error: "Only the creator can rename a file." }, 403)
+  const body = (await request.json().catch(() => null)) as { name?: unknown } | null
+  const name = titleName(body?.name)
+  if (!name) return apiJson({ error: "Enter a name." }, 400)
+  try {
+    if (supabaseConfig()) {
+      const existing = await loadLibraryMedia(id)
+      if (existing === undefined) return apiJson({ error: "The library could not be opened." }, 503)
+      if (!existing) return apiJson({ error: "That file was not found." }, 404)
+      const saved = await putLibraryMedia({ ...existing, name })
+      if (!saved) return apiJson({ error: "That name could not be saved." }, 503)
+      return apiJson({ ok: true, name })
+    }
+    const result = await dbQuery("UPDATE patreon_media SET name = $2 WHERE id = $1", [id, name])
+    if (!result) return apiJson({ error: "The library could not be opened." }, 503)
+    if (result.rowCount === 0) return apiJson({ error: "That file was not found." }, 404)
+  } catch (error) {
+    logDatabaseError(error)
+    return apiJson({ error: "That name could not be saved." }, 500)
+  }
+  return apiJson({ ok: true, name })
+}
+
 export async function removeMedia(request: NextRequest, id: string) {
   if (crossSite(request)) return apiJson({ error: "The request was refused." }, 403)
   if (!MEDIA_ID.test(id)) return apiJson({ error: "That file was not found." }, 404)
