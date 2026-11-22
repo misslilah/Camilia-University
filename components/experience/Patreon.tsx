@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { Play, Trash2, Upload, X } from "lucide-react"
 import { clearLibraryError, deleteMedia, disconnectPatreon, uploadFiles, useLibrary, type LibraryItem, type MediaKind } from "@/lib/patreon"
+import { holdStage } from "@/lib/stage"
 import { tierOptionLabel } from "@/lib/patreon-access"
 import { cn } from "@/lib/utils"
 
@@ -62,43 +64,111 @@ function emptyCopy(admin: boolean, tab: MediaKind, busy: boolean) {
   return "Nothing to play in this tab yet."
 }
 
-function VideoStage({ item, open, onOpen, onClose }: { item: LibraryItem; open: boolean; onOpen: () => void; onClose: () => void }) {
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={onOpen}
-        className="group mt-2 flex w-full items-center gap-3 rounded-[12px] bg-[#1a1020] px-3 py-2.5 text-left text-white transition-transform duration-200 hover:scale-[1.015] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
-      >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[#c2185b] transition-transform duration-200 group-hover:scale-110">
-          <Play className="ml-0.5 h-4 w-4 fill-current" />
-        </span>
-        <span className="text-sm font-semibold">Play</span>
-      </button>
-    )
-  }
+function PlayButton({ name, onOpen }: { name: string; onOpen: () => void }) {
   return (
-    <div className="video-zoom mt-2">
-      <div className="overflow-hidden rounded-[12px] bg-black shadow-[0_16px_36px_rgba(40,8,24,0.28)]">
-        <video
-          controls
-          autoPlay
-          playsInline
-          preload="metadata"
-          src={item.url ?? undefined}
-          aria-label={item.name}
-          className="aspect-video max-h-72 w-full bg-black object-contain"
-        />
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Play ${name}`}
+      className="group mt-2 flex w-full items-center gap-3 rounded-[12px] bg-[#1a1020] px-3 py-2.5 text-left text-white transition-transform duration-200 hover:scale-[1.015] focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+    >
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[#c2185b] transition-transform duration-200 group-hover:scale-110">
+        <Play className="ml-0.5 h-4 w-4 fill-current" />
+      </span>
+      <span className="text-sm font-semibold">Play</span>
+    </button>
+  )
+}
+
+function VideoPlayer({ item, onClose }: { item: LibraryItem; onClose: () => void }) {
+  const [src, setSrc] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [settled, setSettled] = useState(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+
+  useEffect(() => {
+    holdStage(true)
+    return () => holdStage(false)
+  }, [])
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+
+  useEffect(() => {
+    if (!item.url) return
+    let cancel = false
+    const play = item.url.includes("?") ? `${item.url}&play=1` : `${item.url}?play=1`
+    fetch(play, { credentials: "same-origin", cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: unknown) => {
+        if (cancel) return
+        const url = body && typeof body === "object" && "url" in body && typeof body.url === "string" ? body.url : ""
+        if (url) setSrc(url)
+        else setSrc(item.url)
+      })
+      .catch(() => {
+        if (!cancel) setSrc(item.url)
+      })
+    return () => {
+      cancel = true
+    }
+  }, [item.url])
+
+  useEffect(() => {
+    if (settled) return
+    const timer = window.setTimeout(() => setSettled(true), 400)
+    return () => window.clearTimeout(timer)
+  }, [settled])
+
+  if (typeof document === "undefined") return null
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={item.name}
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-3 sm:p-6"
+      onClick={onClose}
+    >
+      <div className={cn("w-[min(1100px,96vw)]", settled ? "" : "video-zoom")} onAnimationEnd={() => setSettled(true)} onClick={(event) => event.stopPropagation()}>
+        <div className="overflow-hidden rounded-xl bg-black shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
+          {settled && src ? (
+            <video
+              key={src}
+              controls
+              autoPlay
+              playsInline
+              preload="auto"
+              src={src}
+              aria-label={item.name}
+              onError={() => setFailed(true)}
+              className="max-h-[82vh] w-full bg-black"
+            />
+          ) : (
+            <div className="flex aspect-video w-full items-center justify-center bg-black text-sm text-white/70">
+              {failed ? "This video could not be opened." : "Opening…"}
+            </div>
+          )}
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-3 text-white">
+          <p className="truncate text-sm font-medium">{item.name}</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-white/15 px-3 text-[12px] font-semibold hover:bg-white/25"
+          >
+            <X className="h-3.5 w-3.5" />
+            Close
+          </button>
+        </div>
+        {failed && settled && <p className="mt-2 text-sm text-[#ffd0d0]">This video could not be opened.</p>}
       </div>
-      <button
-        type="button"
-        onClick={onClose}
-        className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-[#7a2450] underline decoration-[#7a2450]/40 underline-offset-2"
-      >
-        <X className="h-3.5 w-3.5" />
-        Close
-      </button>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -109,6 +179,7 @@ export function Patreon() {
   const [tierId, setTierId] = useState("")
   const [playing, setPlaying] = useState<string | null>(null)
   const listed = library.items.filter((item) => item.kind === tab)
+  const film = library.items.find((item) => item.id === playing && item.kind === "video" && item.url) ?? null
   const knownTiers = library.tiers ?? []
   const selectedTier = knownTiers.find((tier) => tier.id === tierId) ?? null
 
@@ -300,7 +371,7 @@ export function Patreon() {
                   ) : item.url && item.kind === "audio" ? (
                     <audio controls preload="metadata" src={item.url} aria-label={item.name} className="mt-3 h-10 w-full" />
                   ) : item.url ? (
-                    <VideoStage item={item} open={playing === item.id} onOpen={() => setPlaying(item.id)} onClose={() => setPlaying(null)} />
+                    <PlayButton name={item.name} onOpen={() => setPlaying(item.id)} />
                   ) : (
                     <p className="mt-2 text-sm text-[#8a3a60]">Sample. Nothing plays until the creator uploads a real file.</p>
                   )}
@@ -310,6 +381,7 @@ export function Patreon() {
           )}
         </div>
       </div>
+      {film && <VideoPlayer item={film} onClose={() => setPlaying(null)} />}
     </div>
   )
 }

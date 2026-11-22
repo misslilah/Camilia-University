@@ -1,7 +1,7 @@
 "use client"
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react"
-import { useFrame, useThree } from "@react-three/fiber"
+import { useFrame } from "@react-three/fiber"
 import { Text } from "@react-three/drei"
 import { BackSide, DoubleSide, Object3D, PlaneGeometry, type Group, type PointLight, type SpotLight } from "three"
 import { Reflector } from "three/examples/jsm/objects/Reflector.js"
@@ -557,14 +557,13 @@ function Mirror({ lit }: { lit: boolean }) {
   const cy = bottom + height / 2
   const frame = "#b98d5d"
   const lamp = useRef<PointLight>(null)
-  const { size, viewport } = useThree()
   const reflector = useMemo(() => {
     const glass = new Reflector(new PlaneGeometry(width, height), {
-      textureWidth: 512,
-      textureHeight: 512,
+      textureWidth: 768,
+      textureHeight: 768,
       color: 0xe4e8eb,
       clipBias: 0.003,
-      multisample: 4,
+      multisample: 0,
     })
     glass.position.set(x, cy, z)
     glass.rotation.y = -Math.PI / 2
@@ -572,12 +571,6 @@ function Mirror({ lit }: { lit: boolean }) {
   }, [x, z, width, height, cy])
 
   useEffect(() => () => reflector.dispose(), [reflector])
-
-  // The reflector renders the whole mirrored view, so it needs the canvas resolution.
-  useEffect(() => {
-    const dpr = Math.min(viewport.dpr, 1.5)
-    reflector.getRenderTarget().setSize(Math.round(size.width * dpr), Math.round(size.height * dpr))
-  }, [reflector, size.width, size.height, viewport.dpr])
 
   useFrame(({ camera }) => {
     reflector.getReflectionCamera(camera).layers.enable(AVATAR_LAYER)

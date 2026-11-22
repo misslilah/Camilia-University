@@ -1087,6 +1087,7 @@ export async function streamMedia(request: NextRequest, id: string) {
   if (row.storage_path) {
     const signed = await signedDownloadUrl(row.storage_path, 6 * 60 * 60)
     if (!signed) return apiJson({ error: "That file could not be opened." }, 503)
+    if (new URL(request.url).searchParams.get("play") === "1") return apiJson({ url: signed })
     return NextResponse.redirect(signed, { status: 302, headers: { "Cache-Control": "private, no-store" } })
   }
   const bytes = Buffer.isBuffer(row.bytes) ? row.bytes : Buffer.from(row.bytes ?? [])

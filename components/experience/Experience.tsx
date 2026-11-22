@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
+import { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react"
 import { Canvas } from "@react-three/fiber"
 import { Bedroom, RoomDoor } from "@/components/experience/Bedroom"
 import { ACESFilmicToneMapping, SRGBColorSpace } from "three"
@@ -20,6 +20,7 @@ import { setCursor } from "@/lib/cursor"
 import { FADE_ID } from "@/lib/fade"
 import { useScreenRect } from "@/lib/screen-rect"
 import { sound } from "@/lib/sound"
+import { subscribeStage, videoPlaying } from "@/lib/stage"
 import {
   CHAPTERS,
   OUTSIDE,
@@ -74,6 +75,7 @@ export default function Experience() {
   // On phones the desktop covers the whole page once the camera settles, so
   // the scene underneath can stop rendering until something invalidates it.
   const covered = phase === "computer" && narrow && screenRect !== null
+  const watching = useSyncExternalStore(subscribeStage, videoPlaying, () => false)
   const [seatId, setSeatId] = useState<string | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
   const [focused, setFocused] = useState<string | null>(null)
@@ -436,11 +438,12 @@ export default function Experience() {
     >
       <Canvas
         shadows
-        frameloop={covered ? "demand" : "always"}
+        frameloop={covered || watching ? "demand" : "always"}
         dpr={[1, 1.5]}
         camera={{ position: OUTSIDE.position, fov: OUTSIDE.fov, near: 0.05, far: 90 }}
         gl={{
           antialias: true,
+          powerPreference: "high-performance",
           toneMapping: ACESFilmicToneMapping,
           toneMappingExposure: 1.06,
           outputColorSpace: SRGBColorSpace,
