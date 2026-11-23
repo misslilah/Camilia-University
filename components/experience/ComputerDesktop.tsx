@@ -93,7 +93,15 @@ function useClock(active: boolean) {
   return now
 }
 
-export function ComputerDesktop({ open, onLeave }: { open: boolean; onLeave: () => void }) {
+export function ComputerDesktop({
+  open,
+  onLeave,
+  guided = false,
+}: {
+  open: boolean
+  onLeave: () => void
+  guided?: boolean
+}) {
   const live = useScreenRect()
   const [last, setLast] = useState<ScreenRect | null>(null)
   if (live && live !== last) setLast(live)
@@ -108,11 +116,11 @@ export function ComputerDesktop({ open, onLeave }: { open: boolean; onLeave: () 
   return (
     <>
       <div
-        aria-hidden={!visible}
-        inert={!visible}
+        aria-hidden={!visible || guided}
+        inert={!visible || guided}
         className={cn(
           "pointer-events-none absolute bottom-7 left-16 z-20 hidden transition-opacity duration-300 sm:block",
-          visible ? "opacity-100" : "opacity-0",
+          visible && !guided ? "opacity-100" : "opacity-0",
         )}
       >
         <Button
@@ -146,7 +154,7 @@ export function ComputerDesktop({ open, onLeave }: { open: boolean; onLeave: () 
                 : { width: rect.width / scale, height: rect.height / scale, transform: `scale(${scale})` }
             }
           >
-            <Desktop active={visible} scale={scale} onLeave={onLeave} />
+            <Desktop active={visible} scale={scale} onLeave={onLeave} guided={guided} />
           </div>
         )}
       </div>
@@ -154,7 +162,17 @@ export function ComputerDesktop({ open, onLeave }: { open: boolean; onLeave: () 
   )
 }
 
-function Desktop({ active, scale, onLeave }: { active: boolean; scale: number; onLeave: () => void }) {
+function Desktop({
+  active,
+  scale,
+  onLeave,
+  guided,
+}: {
+  active: boolean
+  scale: number
+  onLeave: () => void
+  guided: boolean
+}) {
   const area = useRef<HTMLDivElement>(null)
   const [cells, setCells] = useState<Record<AppId, Cell>>(INITIAL_CELLS)
   const [selected, setSelected] = useState<AppId | null>(null)
@@ -322,6 +340,7 @@ function Desktop({ active, scale, onLeave }: { active: boolean; scale: number; o
               className={cn(
                 "absolute flex w-[84px] touch-none flex-col items-center gap-1.5 rounded-xl px-1 pt-2 pb-1.5 outline-none focus-visible:ring-2 focus-visible:ring-[#c6a15a]",
                 selected === item.id ? "bg-white/18 ring-1 ring-white/35" : "hover:bg-white/10",
+                guided && item.id === "patreon" && "bg-[#ff8f6b]/20 ring-2 ring-[#ffb089] shadow-[0_0_28px_rgba(255,143,107,0.7)]",
                 dragging ? "z-30 cursor-grabbing opacity-90" : "transition-[left,top] duration-200",
               )}
               style={{
@@ -356,7 +375,7 @@ function Desktop({ active, scale, onLeave }: { active: boolean; scale: number; o
           />
         ))}
 
-        {menuOpen && <StartMenu apps={apps} onOpen={openApp} onLeave={onLeave} />}
+        {menuOpen && <StartMenu apps={apps} onOpen={openApp} onLeave={onLeave} guided={guided} />}
       </div>
 
       <Taskbar
@@ -372,6 +391,7 @@ function Desktop({ active, scale, onLeave }: { active: boolean; scale: number; o
           else raise(id)
         }}
         onLeave={onLeave}
+        guided={guided}
       />
     </div>
   )
@@ -590,10 +610,12 @@ function StartMenu({
   apps,
   onOpen,
   onLeave,
+  guided,
 }: {
   apps: { id: AppId; name: string; icon: AppIcon; tint: string }[]
   onOpen: (id: AppId) => void
   onLeave: () => void
+  guided: boolean
 }) {
   return (
     <div
@@ -628,19 +650,21 @@ function StartMenu({
           )
         })}
       </div>
-      <div className="border-t border-white/10 p-1.5">
-        <button
-          type="button"
-          role="menuitem"
-          onClick={onLeave}
-          className="flex h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
-        >
-          <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/10">
-            <Power className="h-4 w-4" />
-          </span>
-          Shut down
-        </button>
-      </div>
+      {!guided && (
+        <div className="border-t border-white/10 p-1.5">
+          <button
+            type="button"
+            role="menuitem"
+            onClick={onLeave}
+            className="flex h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
+          >
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/10">
+              <Power className="h-4 w-4" />
+            </span>
+            Shut down
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -653,6 +677,7 @@ function Taskbar({
   onStart,
   onTask,
   onLeave,
+  guided,
 }: {
   now: Date
   windows: Win[]
@@ -661,6 +686,7 @@ function Taskbar({
   onStart: () => void
   onTask: (id: AppId) => void
   onLeave: () => void
+  guided: boolean
 }) {
   return (
     <div
@@ -720,14 +746,16 @@ function Taskbar({
             {now.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}
           </p>
         </div>
-        <button
-          type="button"
-          aria-label="Back to the room"
-          onClick={onLeave}
-          className="grid h-8 w-8 place-items-center rounded-lg hover:bg-white/12 focus-visible:ring-2 focus-visible:ring-[#c6a15a] focus-visible:outline-none"
-        >
-          <LogOut className="h-4 w-4" />
-        </button>
+        {!guided && (
+          <button
+            type="button"
+            aria-label="Back to the room"
+            onClick={onLeave}
+            className="grid h-8 w-8 place-items-center rounded-lg hover:bg-white/12 focus-visible:ring-2 focus-visible:ring-[#c6a15a] focus-visible:outline-none"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   )

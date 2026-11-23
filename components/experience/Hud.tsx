@@ -24,6 +24,7 @@ export function Hud({
   onRename,
   muted,
   onToggleSound,
+  guided,
 }: {
   phase: Phase
   seat: Seat | null
@@ -42,6 +43,7 @@ export function Hud({
   onRename: (name: string) => void
   muted: boolean
   onToggleSound: () => void
+  guided?: boolean
 }) {
   const chapter = CHAPTERS.find((item) => item.id === chapterId) ?? null
   const hint =
@@ -81,11 +83,11 @@ export function Hud({
       </div>
 
       <div
-        aria-hidden={phase !== "arrival"}
-        inert={phase !== "arrival"}
+        aria-hidden={phase !== "arrival" || guided}
+        inert={phase !== "arrival" || guided}
         className={cn(
           "absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 px-6 pb-8 transition-opacity duration-700 sm:pb-12",
-          phase === "arrival" ? "opacity-100" : "pointer-events-none opacity-0",
+          phase === "arrival" && !guided ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >
         <p className="max-w-sm text-sm text-[#f6f0e6]/80">
@@ -116,11 +118,11 @@ export function Hud({
       </div>
 
       <div
-        aria-hidden={phase !== "room"}
-        inert={phase !== "room"}
+        aria-hidden={phase !== "room" || guided}
+        inert={phase !== "room" || guided}
         className={cn(
           "absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 pr-4 pb-5 pl-16 transition-opacity duration-500 sm:pr-7 sm:pb-7",
-          phase === "room" ? "opacity-100" : "pointer-events-none opacity-0",
+          phase === "room" && !guided ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >
         <Button
@@ -149,7 +151,7 @@ export function Hud({
         <p className="text-[10px] tracking-[0.32em] text-[#f3ead7]/60">UNIVERSITY</p>
       </div>
 
-      {hint && (
+      {hint && !guided && (
         <div className="absolute inset-x-0 bottom-6 flex justify-center px-6 sm:bottom-8">
           <div className="rounded-full border border-[#f3ead7]/20 bg-[#1a120e]/55 px-5 py-2 text-sm backdrop-blur-md">
             {hint}
@@ -163,11 +165,11 @@ export function Hud({
       )}
 
       <div
-        aria-hidden={phase !== "inside"}
-        inert={phase !== "inside"}
+        aria-hidden={phase !== "inside" || guided}
+        inert={phase !== "inside" || guided}
         className={cn(
           "absolute top-20 left-5 transition-opacity duration-500 sm:top-auto sm:bottom-8 sm:left-16",
-          phase === "inside" ? "opacity-100" : "pointer-events-none opacity-0",
+          phase === "inside" && !guided ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >
         <Button
@@ -180,7 +182,7 @@ export function Hud({
         </Button>
       </div>
 
-      {phase === "sitting" && (
+      {phase === "sitting" && !guided && (
         <div className="absolute inset-x-0 bottom-5 flex items-end justify-between gap-3 pr-4 pl-16 sm:bottom-7 sm:pr-7">
           <Button
             variant="outline"

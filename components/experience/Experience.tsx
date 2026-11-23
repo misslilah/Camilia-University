@@ -12,6 +12,7 @@ import { Doors } from "@/components/experience/Doors"
 import { Enrollment, type Student } from "@/components/experience/Enrollment"
 import { Hall, Lights, Motes } from "@/components/experience/Hall"
 import { Hud } from "@/components/experience/Hud"
+import { Tour, arrivalBeat } from "@/components/experience/Tour"
 import { Seating } from "@/components/experience/Seating"
 import { WardrobePanel } from "@/components/experience/WardrobePanel"
 import { baseCharacter, loadCharacter, saveCharacter, type Character, type Sex } from "@/lib/avatar"
@@ -29,6 +30,24 @@ import {
   seatById,
   type Phase,
 } from "@/lib/scene"
+
+const ARRIVAL_KEY = "camilia-introduced"
+
+function arrivalSeen() {
+  try {
+    return window.localStorage.getItem(ARRIVAL_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+function markArrival() {
+  try {
+    window.localStorage.setItem(ARRIVAL_KEY, "1")
+  } catch {
+    // The academy record still remembers the arrival when it can be saved.
+  }
+}
 
 function storedStudent(): Student | null {
   try {
@@ -100,7 +119,10 @@ export default function Experience() {
   const [created, setCreated] = useState(saved?.created ?? false)
   const [student, setStudent] = useState<Student | null>(null)
   const [academyReady, setAcademyReady] = useState(false)
+  const [introduced, setIntroduced] = useState<boolean | null>(null)
+  const [traveling, setTraveling] = useState(false)
   const [gate, setGate] = useState<null | "hall" | "direct" | "room">(null)
+  const tourHop = useRef<null | "leave" | "enter">(null)
   const avatarYawRef = useRef(0)
   const spinRef = useRef<{ x: number; yaw: number } | null>(null)
 
@@ -138,7 +160,7 @@ export default function Experience() {
   }, [])
 
   const openDoors = useCallback(() => {
-    if (phase !== "arrival") return
+    if (phase !== "arrival" || tourHop.current) return
     sound.entrance(reduced)
     go("opening")
   }, [go, phase, reduced])
@@ -149,23 +171,24 @@ export default function Experience() {
   }, [go, reduced])
 
   const enterRoom = useCallback(() => {
-    if (phase !== "arrival") return
+    if (phase !== "arrival" || (tourHop.current && tourHop.current !== "enter")) return
     sound.toRoom(reduced)
     go("toRoom")
   }, [go, phase, reduced])
 
   const beginEntry = useCallback(
     (next: "hall" | "direct" | "room") => {
-      if (phase !== "arrival") return
+      if (phase !== "arrival" || tourHop.current) return
       if (!student) {
         setGate(next)
         return
       }
+      if (introduced === false && next !== "hall") return
       if (next === "hall") openDoors()
       else if (next === "direct") skip()
       else enterRoom()
     },
-    [enterRoom, openDoors, phase, skip, student],
+    [enterRoom, introduced, openDoors, phase, skip, student],
   )
 
   useEffect(() => {
@@ -182,7 +205,9 @@ export default function Experience() {
           const progress = await fetch("/api/academy/progress")
             .then((response) => response.json())
             .catch(() => null)
-          if (cancel || !progress?.character) return
+          if (cancel) return
+          setIntroduced(Boolean(progress?.introduced))
+          if (!progress?.character) return
           const restored = progress.character as Character
           saveCharacter(restored)
           setCharacter(restored)
@@ -191,7 +216,10 @@ export default function Experience() {
         }
         if (!data.configured) {
           const local = storedStudent()
-          if (local) setStudent(local)
+          if (local) {
+            setStudent(local)
+            setIntroduced(arrivalSeen())
+          }
         }
       })
       .catch(() => {})
@@ -213,12 +241,12 @@ export default function Experience() {
   }, [go, phase, reduced])
 
   const openWardrobe = useCallback(() => {
-    if (phase !== "room") return
+    if (phase !== "room" || introduced === false) return
     setCursor("auto")
     avatarYawRef.current = 0
     sound.wardrobeOpen()
     go("wardrobe")
-  }, [go, phase])
+  }, [go, introduced, phase])
 
   const closeWardrobe = useCallback(() => {
     if (phase !== "wardrobe") return
@@ -251,13 +279,13 @@ export default function Experience() {
   useEffect(() => {
     if (!created || !character) return
     saveCharacter(character)
-    if (!student || !academyReady) return
+    if (!student || !academyReady || introduced === null) return
     fetch("/api/academy/progress", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ character }),
+      body: JSON.stringify(introduced ? { character, introduced: true } : { character }),
     }).catch(() => {})
-  }, [academyReady, character, created, student])
+  }, [academyReady, character, created, introduced, student])
 
   const createCharacter = useCallback(() => setCreated(true), [])
 
@@ -357,7 +385,54 @@ export default function Experience() {
   }, [muted])
 
   useEffect(() => {
+    if (introduced !== false) return
+    if (tourHop.current === "leave" && phase === "inside") {
+      tourHop.current = "enter"
+      leaveHall()
+    } else if (tourHop.current === "enter" && phase === "arrival") {
+      tourHop.current = null
+      enterRoom()
+    }
+  }, [enterRoom, introduced, leaveHall, phase])
+
+  const finishArrival = useCallback(() => {
+    markArrival()
+    tourHop.current = null
+    setTraveling(false)
+    setIntroduced(true)
+    if (academyReady && student) {
+      fetch("/api/academy/progress", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ introduced: true }),
+      }).catch(() => {})
+    }
+    if (phase === "computer") closeComputer()
+  }, [academyReady, closeComputer, phase, student])
+
+  const continueArrival = useCallback(() => {
+    if (introduced !== false) return
+    const beat = arrivalBeat(phase, settled, traveling)
+    if (beat === "welcome") beginEntry("hall")
+    else if (beat === "hall") pickSeat(neighbor(null, "left"))
+    else if (beat === "seated") {
+      tourHop.current = "leave"
+      setTraveling(true)
+      if (phase === "sitting") stand()
+      else leaveHall()
+    } else if (beat === "room") openComputer()
+    else if (beat === "desk") finishArrival()
+  }, [beginEntry, finishArrival, introduced, leaveHall, openComputer, phase, pickSeat, settled, stand, traveling])
+
+  useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      if (introduced === false) {
+        if (phase === "arrival" && !gate && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault()
+          beginEntry("hall")
+        }
+        return
+      }
       if (phase === "computer") {
         if (event.key === "Escape" && !event.defaultPrevented) closeComputer()
         return
@@ -408,7 +483,7 @@ export default function Experience() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [beginEntry, chapterId, closeChapter, closeComputer, closeWardrobe, focused, gate, leaveHall, leaveRoom, openChapter, phase, pickSeat, settled, skip, stand, turnAvatar])
+  }, [beginEntry, chapterId, closeChapter, closeComputer, closeWardrobe, focused, gate, introduced, leaveHall, leaveRoom, openChapter, phase, pickSeat, settled, skip, stand, turnAvatar])
 
   if (!webgl) return <FlatCampus />
 
@@ -460,7 +535,7 @@ export default function Experience() {
           <Suspense fallback={null}>
             <Signage />
             <Blackboard
-              showMenu={phase === "sitting" && settled}
+              showMenu={phase === "sitting" && settled && introduced !== false}
               chapterId={chapterId}
               onSelect={openChapter}
               onBack={closeChapter}
@@ -473,7 +548,10 @@ export default function Experience() {
           character={character}
           avatarYawRef={avatarYawRef}
           onWardrobe={openWardrobe}
-          onComputer={openComputer}
+          onComputer={() => {
+            if (introduced === false) return
+            openComputer()
+          }}
         />
         <Director
           phase={phase}
@@ -520,8 +598,12 @@ export default function Experience() {
             }).catch(() => {})
           }
         }}
+        guided={Boolean(student) && introduced !== true && !gate}
         onSignOut={() => {
           setStudent(null)
+          setIntroduced(null)
+          tourHop.current = null
+          setTraveling(false)
           try {
             window.localStorage.removeItem("camilia-student")
           } catch {
@@ -544,13 +626,39 @@ export default function Experience() {
             setStudent(next)
             const action = gate
             setGate(null)
-            if (action === "hall") openDoors()
-            else if (action === "direct") skip()
-            else enterRoom()
+            const resume = (seen: boolean) => {
+              setIntroduced(seen)
+              if (!seen || !action) return
+              if (action === "hall") openDoors()
+              else if (action === "direct") skip()
+              else enterRoom()
+            }
+            if (!academyReady) {
+              resume(arrivalSeen())
+              return
+            }
+            fetch("/api/academy/progress")
+              .then((response) => response.json())
+              .then((progress: { introduced?: boolean; character?: Character }) => {
+                if (progress?.character) {
+                  saveCharacter(progress.character)
+                  setCharacter(progress.character)
+                  setCreated(true)
+                }
+                resume(Boolean(progress?.introduced))
+              })
+              .catch(() => resume(false))
           }}
         />
       )}
-      <ComputerDesktop open={phase === "computer"} onLeave={closeComputer} />
+      {introduced === false && !gate && student && arrivalBeat(phase, settled, traveling) && (
+        <Tour
+          beat={arrivalBeat(phase, settled, traveling)!}
+          onNext={continueArrival}
+          onSkip={finishArrival}
+        />
+      )}
+      <ComputerDesktop open={phase === "computer"} onLeave={closeComputer} guided={introduced === false} />
       <WardrobePanel
         open={phase === "wardrobe"}
         character={character}
