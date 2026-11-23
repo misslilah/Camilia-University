@@ -70,18 +70,27 @@ function readSession(payload: AuthPayload, email: string): AuthSession | null {
   }
 }
 
+const MAIL_ERROR = "The confirmation email could not be sent. In Supabase, check the Brevo SMTP login, the SMTP key, and the sender address, then try again."
+
 export async function signUp(email: string, password: string, name: string) {
   const config = supabaseConfig()
   if (!config) return { error: "Enrollment is not open yet." }
-  const response = await fetch(`${config.url}/auth/v1/signup`, {
-    method: "POST",
-    headers: authHeaders(config.anonKey),
-    body: JSON.stringify({ email, password, data: { full_name: name } }),
-  })
+  let response: Response
+  try {
+    response = await fetch(`${config.url}/auth/v1/signup`, {
+      method: "POST",
+      headers: authHeaders(config.anonKey),
+      body: JSON.stringify({ email, password, data: { full_name: name } }),
+      signal: AbortSignal.timeout(20_000),
+    })
+  } catch {
+    return { error: MAIL_ERROR }
+  }
   const payload = (await response.json().catch(() => ({}))) as AuthPayload & { msg?: string; error_description?: string; code?: string }
   if (!response.ok) {
     const message = `${payload.msg ?? ""} ${payload.error_description ?? ""}`.toLowerCase()
     if (message.includes("already")) return { error: "A student with this email is already enrolled. Sign in instead." }
+    if (message.includes("confirmation") || message.includes("smtp") || message.includes("email")) return { error: MAIL_ERROR }
     return { error: "The academy could not open that record." }
   }
   const session = readSession(payload, email)

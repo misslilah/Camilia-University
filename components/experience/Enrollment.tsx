@@ -46,6 +46,7 @@ export function Enrollment({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password }),
+        signal: AbortSignal.timeout(25_000),
       })
       const body = (await response.json().catch(() => ({}))) as { error?: string; student?: Student; confirm?: string }
       if (body.confirm) {
@@ -58,7 +59,11 @@ export function Enrollment({
       }
       onEnrolled(body.student)
     } catch {
-      setError("The academy could not be reached.")
+      setError(
+        mode === "enroll"
+          ? "The confirmation email could not be sent. In Supabase, check the Brevo SMTP login, the SMTP key, and the sender address, then try again."
+          : "The academy could not be reached.",
+      )
     } finally {
       setPending(false)
     }
