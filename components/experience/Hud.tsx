@@ -16,6 +16,7 @@ export function Hud({
   onStand,
   onRoom,
   onLeaveRoom,
+  onCloseNightstand,
   onLeaveHall,
   onSelect,
   onBack,
@@ -35,6 +36,7 @@ export function Hud({
   onStand: () => void
   onRoom: () => void
   onLeaveRoom: () => void
+  onCloseNightstand: () => void
   onLeaveHall: () => void
   onSelect: (id: string) => void
   onBack: () => void
@@ -142,6 +144,27 @@ export function Hud({
       </div>
 
       <div
+        aria-hidden={phase !== "cupboard"}
+        inert={phase !== "cupboard"}
+        className={cn(
+          "absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 pr-4 pb-5 pl-16 transition-opacity duration-500 sm:pr-7 sm:pb-7",
+          phase === "cupboard" ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+      >
+        <Button
+          variant="outline"
+          className="pointer-events-auto rounded-full border-[#f3ead7]/30 bg-[#1a120e]/55 text-[#f6f0e6] backdrop-blur-md hover:bg-[#f3ead7] hover:text-[#2a1c14]"
+          onClick={onCloseNightstand}
+        >
+          <ArrowLeft />
+          Back to the bedroom
+        </Button>
+        <p className="rounded-full bg-[#1a120e]/45 px-3 py-2 text-xs tracking-wide text-[#f6f0e6]/85 backdrop-blur-md">
+          Looking down into the cupboard · Escape closes it
+        </p>
+      </div>
+
+      <div
         className={cn(
           "absolute top-5 left-5 transition-opacity duration-700 sm:top-7 sm:left-7",
           phase === "arrival" ? "opacity-0" : "opacity-100",
@@ -218,7 +241,9 @@ export function Hud({
         {phase === "leaving" && "You walk back out to the hallway."}
         {phase === "toRoom" && "You open the bedroom door."}
         {phase === "room" &&
-          "You are in the bedroom: blue walls, a bed under the window, a desk with a computer, a wardrobe and a standing mirror. Click the wardrobe to get dressed, the nightstand to open its drawer, or the computer to use it. Press Escape to go back to the hallway."}
+          "You are in the bedroom: blue walls, a bed under the window, a desk with a computer, a wardrobe and a standing mirror. Click the wardrobe to get dressed, the nightstand to open it, or the computer to use it. Press Escape to go back to the hallway."}
+        {phase === "cupboard" &&
+          "The nightstand cupboard is open, seen from above. A notebook, an earbud case and a comb are inside. The silver bottle is the welcome gift, when it is still in the cupboard. Press Escape to return to the bedroom."}
         {phase === "computer" &&
           "You sit at the desk in front of the computer desktop. Open the start menu or the desktop icons. The Admin desk appears only for the creator. Press Escape to go back to the room."}
         {phase === "wardrobe" &&

@@ -12,6 +12,7 @@ import {
   AVATAR_SPOT,
   DESK,
   MIRROR,
+  NIGHTSTAND_AT,
   ROOM,
   ROOM_DOOR,
   ROOM_ORIGIN,
@@ -24,7 +25,8 @@ import {
 } from "@/lib/scene"
 import { getCells, getServerCells, monitorIcons, subscribeCells } from "@/lib/desktop"
 import { missedMail } from "@/lib/mail"
-import { loadBottle, saveBottle, type BottlePlace } from "@/lib/nightstand"
+import { cupboardMarks, cupboardReveal, loadBottle, saveBottle, type BottlePlace } from "@/lib/nightstand"
+import { CupboardGoods, DeskBottle, useBottleArt } from "@/components/experience/PoppersBottle"
 import { loadObedience } from "@/lib/obedience"
 import { useLibrary } from "@/lib/patreon"
 import { loadNotices, noticeUpdate } from "@/lib/patreon-notices"
@@ -104,6 +106,8 @@ export function Bedroom({
   avatarYawRef,
   onWardrobe,
   onComputer,
+  onNightstand,
+  onNightstandClose,
 }: {
   phase: Phase
   reduced: boolean
@@ -112,19 +116,32 @@ export function Bedroom({
   avatarYawRef: { current: number }
   onWardrobe: () => void
   onComputer: () => void
+  onNightstand: () => void
+  onNightstandClose: () => void
 }) {
   const who = name.trim() || "Student"
   const gift = useCourseGift(who)
   const [bottlePlace, toggleBottle] = useBottlePlace(who)
   const bottle = gift ? bottlePlace : null
+  const art = useBottleArt()
   const active = inRoom(phase)
   return (
     <group>
       <group position={ROOM_ORIGIN} visible={phase !== "inside" && phase !== "sitting" && phase !== "opening" && phase !== "leaving"}>
         <Shell />
         <Bed />
-        <Nightstand phase={phase} reduced={reduced} bottle={bottle === "drawer"} onBottle={toggleBottle} />
-        <Desk phase={phase} name={name} onOpen={onComputer} bottle={bottle === "desk"} onBottle={toggleBottle} />
+        <Nightstand
+          phase={phase}
+          reduced={reduced}
+          art={art}
+          bottle={bottle === "drawer"}
+          onOpen={onNightstand}
+          onBottle={() => {
+            toggleBottle()
+            onNightstandClose()
+          }}
+        />
+        <Desk phase={phase} name={name} onOpen={onComputer} art={art} bottle={bottle === "desk"} onBottle={toggleBottle} />
         <DeskChair />
         <Wardrobe phase={phase} onOpen={onWardrobe} reduced={reduced} />
         <Mirror lit={active} />
@@ -285,117 +302,63 @@ function Bed() {
 }
 
 const NIGHTSTAND = { w: 0.42, d: 0.4, h: 0.54, t: 0.016 }
-const DRAWER_SLIDE = 0.24
-
-function PoppersBottle({
-  active,
-  onToggle,
-  position,
-}: {
-  active: boolean
-  onToggle: () => void
-  position: [number, number, number]
-}) {
-  const [hover, setHover] = useState(false)
-  const glow = hover ? "#5a3a16" : "#000000"
-  return (
-    <group
-      position={position}
-      onClick={(event) => {
-        if (!active) return
-        event.stopPropagation()
-        if (event.delta >= 10) return
-        setHover(false)
-        setCursor("auto")
-        onToggle()
-      }}
-      onPointerOver={(event) => {
-        if (!active) return
-        event.stopPropagation()
-        setHover(true)
-        setCursor("pointer")
-      }}
-      onPointerOut={() => {
-        setHover(false)
-        if (active) setCursor("auto")
-      }}
-    >
-      <mesh position={[0, 0.1, 0]}>
-        <boxGeometry args={[0.12, 0.22, 0.1]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
-      <mesh position={[0, 0.08, 0]} castShadow>
-        <cylinderGeometry args={[0.026, 0.03, 0.16, 20]} />
-        <meshStandardMaterial color="#9a4e16" roughness={0.28} metalness={0.08} emissive={glow} emissiveIntensity={0.45} />
-      </mesh>
-      <mesh position={[0, 0.174, 0]}>
-        <cylinderGeometry args={[0.012, 0.015, 0.028, 16]} />
-        <meshStandardMaterial color="#7a3c10" roughness={0.32} emissive={glow} emissiveIntensity={0.3} />
-      </mesh>
-      <mesh position={[0, 0.196, 0]} castShadow>
-        <cylinderGeometry args={[0.016, 0.016, 0.018, 16]} />
-        <meshStandardMaterial color={hover ? "#f2efe7" : "#1a1a1a"} metalness={0.5} roughness={0.32} />
-      </mesh>
-      <mesh position={[0.09, 0.1, 0.02]} rotation={[0.6, 0, 0]}>
-        <planeGeometry args={[0.13, 0.04]} />
-        <meshStandardMaterial color="#f4efe4" roughness={0.8} side={DoubleSide} />
-      </mesh>
-      <Suspense fallback={null}>
-        <Text
-          font={SERIF_FONT}
-          position={[0.09, 0.1, 0.028]}
-          rotation={[0.6, 0, 0]}
-          fontSize={0.022}
-          color="#6d2c3a"
-          anchorX="center"
-          anchorY="middle"
-        >
-          Poppers
-        </Text>
-      </Suspense>
-    </group>
-  )
-}
+const DRAWER_SLIDE = 0.32
 
 function Nightstand({
   phase,
   reduced,
+  art,
   bottle,
+  onOpen,
   onBottle,
 }: {
   phase: Phase
   reduced: boolean
+  art: ReturnType<typeof useBottleArt>
   bottle: boolean
+  onOpen: () => void
   onBottle: () => void
 }) {
-  const x = -HALF_W + 1.25
-  const z = -HALF_D + 0.26
   const { w, d, h, t } = NIGHTSTAND
   const enabled = phase === "room"
   const [hover, setHover] = useState(false)
-  const [open, setOpen] = useState(false)
+  const [shown, setShown] = useState(false)
   const amount = useRef(0)
+  const reveal = useRef(0)
+  const shownRef = useRef(false)
   const drawer = useRef<Group>(null)
+  const clock = useRef({ opening: false, at: 0, from: 0 })
   const glow = hover && enabled ? "#5a3a16" : "#000000"
 
   useEffect(() => {
     if (!enabled) setCursor("auto")
   }, [enabled])
 
-  useFrame((_, delta) => {
-    const target = open ? 1 : 0
-    const speed = reduced ? 7 : 2.4
-    const current = amount.current
-    amount.current = current + Math.sign(target - current) * Math.min(Math.abs(target - current), delta * speed)
-    if (drawer.current) drawer.current.position.z = smootherstep(amount.current) * DRAWER_SLIDE
+  useFrame(() => {
+    const opening = phase === "cupboard"
+    if (clock.current.opening !== opening) {
+      clock.current = { opening, at: performance.now(), from: amount.current }
+    }
+    const marks = cupboardMarks(reduced)
+    const span = (opening ? marks.open : Math.min(0.45, marks.open)) * 1000
+    const u = smootherstep(Math.min(1, (performance.now() - clock.current.at) / Math.max(1, span)))
+    amount.current = opening ? clock.current.from + (1 - clock.current.from) * u : clock.current.from * (1 - u)
+    if (drawer.current) drawer.current.position.z = amount.current * DRAWER_SLIDE
+    const story = opening ? (performance.now() - clock.current.at) / 1000 : 0
+    reveal.current = opening ? cupboardReveal(story, reduced) : 0
+    const next = opening && reveal.current > 0.08
+    if (shownRef.current !== next) {
+      shownRef.current = next
+      setShown(next)
+    }
   })
 
   return (
     <group
-      position={[x, 0, z]}
+      position={[NIGHTSTAND_AT.x, 0, NIGHTSTAND_AT.z]}
       onClick={(event) => {
         event.stopPropagation()
-        if (enabled && event.delta < 10) setOpen((value) => !value)
+        if (enabled && event.delta < 10) onOpen()
       }}
       onPointerOver={(event) => {
         event.stopPropagation()
@@ -426,11 +389,15 @@ function Nightstand({
         </mesh>
         <Block box={[0, 0.34, d / 2 + 0.012, 0.1, 0.02, 0.02]} color="#9aa0a8" metalness={0.7} roughness={0.3} shadow={false} />
         <Block box={[0, 0.302, 0.02, w - 2 * t - 0.028, 0.012, 0.3]} color="#e7dcc8" roughness={0.75} />
+        <Block box={[0, 0.3095, 0.02, w - 2 * t - 0.05, 0.004, 0.27]} color="#c9b69a" roughness={0.92} shadow={false} />
         <Block box={[-0.174, 0.345, 0.02, 0.01, 0.08, 0.3]} color="#efeae0" roughness={0.65} />
         <Block box={[0.174, 0.345, 0.02, 0.01, 0.08, 0.3]} color="#efeae0" roughness={0.65} />
         <Block box={[0, 0.345, -0.13, 0.348, 0.08, 0.01]} color="#e7dcc8" roughness={0.7} />
-        {bottle && <PoppersBottle active={enabled && open} onToggle={onBottle} position={[0.02, 0.308, 0.08]} />}
+        {shown && <CupboardGoods art={art} bottle={bottle} active={phase === "cupboard"} onBottle={onBottle} />}
       </group>
+      {phase === "cupboard" && (
+        <pointLight position={[0, 0.92, 0.34]} intensity={1.4} distance={1.8} decay={2} color="#fff6ea" />
+      )}
 
       <mesh position={[0.06, 0.58, -0.02]} castShadow>
         <cylinderGeometry args={[0.07, 0.08, 0.06, 20]} />
@@ -453,12 +420,14 @@ function Desk({
   phase,
   name,
   onOpen,
+  art,
   bottle,
   onBottle,
 }: {
   phase: Phase
   name: string
   onOpen: () => void
+  art: ReturnType<typeof useBottleArt>
   bottle: boolean
   onBottle: () => void
 }) {
@@ -573,7 +542,7 @@ function Desk({
         <cylinderGeometry args={[0.04, 0.035, 0.1, 18]} />
         <meshStandardMaterial color="#e85d3a" roughness={0.5} />
       </mesh>
-      {bottle && <PoppersBottle active={enabled} onToggle={onBottle} position={[0.48, 0.758, 0.24]} />}
+      {bottle && <DeskBottle active={enabled} art={art} onToggle={onBottle} />}
 
       <group position={[0.46, 0, 0.02]}>
         <Block box={[0, 0.25, 0, 0.21, 0.46, 0.46]} color="#16181d" metalness={0.3} roughness={0.4} />

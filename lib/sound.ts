@@ -534,6 +534,20 @@ class HallSound {
     ])
   }
 
+  nightstandOpen() {
+    this.play([
+      { clip: "door-creak-a", at: 0.02, gain: 0.06, pan: -0.35, wet: 0.04, rate: 1.75, length: 0.42 },
+      { clip: "step-wood-2", at: 0.06, gain: 0.16, pan: -0.32, wet: 0.03, rate: 0.7, length: 0.5 },
+    ])
+  }
+
+  nightstandClose() {
+    this.play([
+      { clip: "step-wood-4", at: 0.02, gain: 0.13, pan: -0.3, wet: 0.03, rate: 0.78, length: 0.36 },
+      { clip: "door-close", at: 0.22, gain: 0.12, pan: -0.28, wet: 0.03, rate: 1.6, length: 0.22 },
+    ])
+  }
+
   click() {
     this.play([{ clip: "door-latch", at: 0, gain: 0.07, wet: 0.02, rate: 2.3, length: 0.2 }])
   }

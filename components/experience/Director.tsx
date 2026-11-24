@@ -5,8 +5,12 @@ import { useFrame } from "@react-three/fiber"
 import { PerspectiveCamera, Vector3 } from "three"
 import { setFade } from "@/lib/fade"
 import { setScreenRect } from "@/lib/screen-rect"
+import { cupboardDuration, cupboardMarks } from "@/lib/nightstand"
 import {
   COMPUTER_FOV,
+  CUPBOARD_ABOVE,
+  CUPBOARD_WATCH,
+  CUPBOARD_ZOOM,
   INSIDE,
   OUTSIDE,
   ROOM_APPROACH,
@@ -36,9 +40,15 @@ import {
 
 export type LookOffset = { yaw: number; pitch: number }
 
-type Mode = "hold" | "enter" | "lerp" | "leaving" | "toRoom" | "room" | "wardrobe" | "computer" | "fromRoom"
+type Mode = "hold" | "enter" | "lerp" | "leaving" | "toRoom" | "room" | "cupboard" | "wardrobe" | "computer" | "fromRoom"
 
 const corner = new Vector3()
+const watchP = new Vector3(...CUPBOARD_WATCH.position)
+const watchL = new Vector3(...CUPBOARD_WATCH.look)
+const zoomP = new Vector3(...CUPBOARD_ZOOM.position)
+const zoomL = new Vector3(...CUPBOARD_ZOOM.look)
+const aboveP = new Vector3(...CUPBOARD_ABOVE.position)
+const aboveL = new Vector3(...CUPBOARD_ABOVE.look)
 
 export function Director({
   phase,
@@ -75,6 +85,11 @@ export function Director({
   const roomBase = useRef(new Vector3())
   const roomTurn = useRef({ yaw: 0, pitch: 0 })
   const shift = useRef({ x: 0, y: 0 })
+  const cupFromP = useRef(new Vector3())
+  const cupFromL = useRef(new Vector3())
+  const cupOpenP = useRef(new Vector3())
+  const cupOpenL = useRef(new Vector3())
+  const cupFov = useRef({ from: OUTSIDE.fov, open: CUPBOARD_WATCH.fov })
   const anim = useRef({
     phase: "",
     seatId: "",
@@ -137,7 +152,7 @@ export function Director({
         roomTurn.current = { yaw: 0, pitch: 0 }
         motion.toFov = narrow ? 74 : ROOM_VIEW.fov
         motion.duration = wardrobeDuration(reduced)
-        if (previous === "wardrobe" || previous === "computer") {
+        if (previous === "wardrobe" || previous === "computer" || previous === "cupboard") {
           motion.blend = 0
         } else {
           motion.blend = 1
@@ -147,6 +162,15 @@ export function Director({
           camera.fov = motion.toFov
           camera.updateProjectionMatrix()
         }
+      } else if (phase === "cupboard") {
+        motion.mode = "cupboard"
+        motion.duration = cupboardDuration(reduced)
+        motion.fromFov = camera.fov
+        cupFromP.current.copy(camera.position)
+        cupFromL.current.copy(look.current)
+        cupOpenP.current.copy(watchP)
+        cupOpenL.current.copy(watchL)
+        cupFov.current = { from: camera.fov, open: CUPBOARD_WATCH.fov }
       } else if (phase === "wardrobe") {
         motion.mode = "wardrobe"
         motion.duration = wardrobeDuration(reduced)
@@ -256,6 +280,33 @@ export function Director({
         camera.position.copy(toP.current)
         look.current.copy(toL.current)
       }
+    } else if (motion.mode === "cupboard") {
+      motion.fade = Math.max(0, motion.fade - delta / (reduced ? 0.25 : 0.7))
+      // Wall clock, shared with the drawer. A late frame catches up to the
+      // beat it belongs in instead of stalling the open, the zoom, and the
+      // overhead view.
+      const marks = cupboardMarks(reduced)
+      const t = Math.min(cupboardDuration(reduced), Math.max(0, elapsed))
+      let fov = cupFov.current.from
+      if (t < marks.open) {
+        const u = smootherstep(t / Math.max(0.05, marks.open))
+        camera.position.lerpVectors(cupFromP.current, cupOpenP.current, u)
+        look.current.lerpVectors(cupFromL.current, cupOpenL.current, u)
+        fov = cupFov.current.from + (cupFov.current.open - cupFov.current.from) * u
+      } else if (t < marks.open + marks.zoom) {
+        const u = smootherstep((t - marks.open) / marks.zoom)
+        camera.position.lerpVectors(cupOpenP.current, zoomP, u)
+        look.current.lerpVectors(cupOpenL.current, zoomL, u)
+        fov = cupFov.current.open + (CUPBOARD_ZOOM.fov - cupFov.current.open) * u
+      } else {
+        const u = smootherstep(Math.min(1, (t - marks.open - marks.zoom) / marks.over))
+        camera.position.lerpVectors(zoomP, aboveP, u)
+        look.current.lerpVectors(zoomL, aboveL, u)
+        fov = CUPBOARD_ZOOM.fov + (CUPBOARD_ABOVE.fov - CUPBOARD_ZOOM.fov) * u
+      }
+      camera.fov = fov
+      motion.toFov = fov
+      camera.updateProjectionMatrix()
     } else if (motion.mode === "wardrobe") {
       motion.fade = Math.max(0, motion.fade - delta / (reduced ? 0.25 : 0.7))
       motion.elapsed += delta

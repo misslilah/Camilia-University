@@ -7,12 +7,12 @@ export type ArrivalBeat = "welcome" | "crossing" | "hall" | "seated" | "corridor
 
 export function arrivalBeat(phase: Phase, settled: boolean, traveling: boolean): ArrivalBeat | null {
   if (phase === "leaving" || phase === "toRoom" || phase === "fromRoom") return "corridor"
-  if (traveling && phase !== "room" && phase !== "computer" && phase !== "wardrobe") return "corridor"
+  if (traveling && phase !== "room" && phase !== "cupboard" && phase !== "computer" && phase !== "wardrobe") return "corridor"
   if (phase === "arrival") return "welcome"
   if (phase === "opening") return "crossing"
   if (phase === "inside") return "hall"
   if (phase === "sitting") return settled ? "seated" : "crossing"
-  if (phase === "room" || phase === "wardrobe") return "room"
+  if (phase === "room" || phase === "wardrobe" || phase === "cupboard") return "room"
   if (phase === "computer") return "desk"
   return null
 }

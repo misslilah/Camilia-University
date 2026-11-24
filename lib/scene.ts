@@ -8,6 +8,7 @@ export type Phase =
   | "leaving"
   | "toRoom"
   | "room"
+  | "cupboard"
   | "wardrobe"
   | "computer"
   | "fromRoom"
@@ -82,7 +83,38 @@ export const ROOM_VIEW = {
 }
 
 export function inRoom(phase: Phase) {
-  return phase === "room" || phase === "wardrobe" || phase === "computer" || phase === "fromRoom"
+  return phase === "room" || phase === "cupboard" || phase === "wardrobe" || phase === "computer" || phase === "fromRoom"
+}
+
+// Bedroom-local origin of the nightstand. The open tray sits 0.34 ahead of it
+// (the drawer slides 0.32, and its floor is centered 0.02 in front).
+export const NIGHTSTAND_AT = {
+  x: -ROOM.width / 2 + 1.25,
+  z: -ROOM.depth / 2 + 0.26,
+}
+
+const CUPBOARD_CENTER: Vec3 = [
+  ROOM_ORIGIN[0] + NIGHTSTAND_AT.x,
+  0.33,
+  ROOM_ORIGIN[2] + NIGHTSTAND_AT.z + 0.34,
+]
+
+export const CUPBOARD_WATCH = {
+  position: [CUPBOARD_CENTER[0] + 0.12, 1.08, CUPBOARD_CENTER[2] + 1.42] as Vec3,
+  look: [CUPBOARD_CENTER[0], 0.46, CUPBOARD_CENTER[2] - 0.04] as Vec3,
+  fov: 46,
+}
+
+export const CUPBOARD_ZOOM = {
+  position: [CUPBOARD_CENTER[0] + 0.01, 0.7, CUPBOARD_CENTER[2] + 0.58] as Vec3,
+  look: [CUPBOARD_CENTER[0], 0.4, CUPBOARD_CENTER[2]] as Vec3,
+  fov: 32,
+}
+
+export const CUPBOARD_ABOVE = {
+  position: [CUPBOARD_CENTER[0], CUPBOARD_CENTER[1] + 0.78, CUPBOARD_CENTER[2] + 0.08] as Vec3,
+  look: [CUPBOARD_CENTER[0], CUPBOARD_CENTER[1], CUPBOARD_CENTER[2]] as Vec3,
+  fov: 28,
 }
 
 // Bedroom-local placement of the desk; the monitor screen sits on it.

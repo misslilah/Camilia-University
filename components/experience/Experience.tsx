@@ -271,6 +271,20 @@ export default function Experience() {
     go("room")
   }, [go, phase])
 
+  const openNightstand = useCallback(() => {
+    if (phase !== "room" || introduced === false) return
+    setCursor("auto")
+    sound.nightstandOpen()
+    go("cupboard")
+  }, [go, introduced, phase])
+
+  const closeNightstand = useCallback(() => {
+    if (phase !== "cupboard") return
+    lookRef.current = { yaw: 0, pitch: 0 }
+    sound.nightstandClose()
+    go("room")
+  }, [go, phase])
+
   // Updates are applied to the latest state so quick successive picks all land.
   const updateCharacter = useCallback((update: (current: Character) => Character) => {
     setCharacter((current) => (current ? update(current) : current))
@@ -438,6 +452,10 @@ export default function Experience() {
         if (event.key === "Escape" && !event.defaultPrevented) closeComputer()
         return
       }
+      if (phase === "cupboard") {
+        if (event.key === "Escape") closeNightstand()
+        return
+      }
       const target = event.target
       if (target instanceof HTMLElement && target.closest("button, a, input, textarea, [role=slider], [role=tab]")) return
       if (phase === "arrival" && !gate && (event.key === "Enter" || event.key === " ")) {
@@ -484,7 +502,7 @@ export default function Experience() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [beginEntry, chapterId, closeChapter, closeComputer, closeWardrobe, focused, gate, introduced, leaveHall, leaveRoom, openChapter, phase, pickSeat, settled, skip, stand, turnAvatar])
+  }, [beginEntry, chapterId, closeChapter, closeComputer, closeNightstand, closeWardrobe, focused, gate, introduced, leaveHall, leaveRoom, openChapter, phase, pickSeat, settled, skip, stand, turnAvatar])
 
   if (!webgl) return <FlatCampus />
 
@@ -554,6 +572,8 @@ export default function Experience() {
             if (introduced === false) return
             openComputer()
           }}
+          onNightstand={openNightstand}
+          onNightstandClose={closeNightstand}
         />
         <Director
           phase={phase}
@@ -614,6 +634,7 @@ export default function Experience() {
           if (academyReady) fetch("/api/academy/logout", { method: "POST" }).catch(() => {})
         }}
         onLeaveRoom={leaveRoom}
+        onCloseNightstand={closeNightstand}
         onLeaveHall={leaveHall}
         onSelect={openChapter}
         onBack={closeChapter}
