@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { Courses } from "@/components/experience/Courses"
 import { Button } from "@/components/ui/button"
 import { CHAPTERS } from "@/lib/scene"
 import { sound } from "@/lib/sound"
@@ -35,7 +36,12 @@ export function FlatCampus() {
                   <span className="mr-4 text-sm tracking-[0.2em] text-[#6b4a32]">{chapter.numeral}</span>
                   {chapter.title}
                 </Button>
-                {expanded && (
+                {expanded && chapter.id === "cours" && (
+                  <div className="mb-4 h-[70vh] overflow-hidden rounded-2xl border border-[#2a1c14]/15">
+                    <Courses name="Student" onLeave={() => setOpen(null)} />
+                  </div>
+                )}
+                {expanded && chapter.id !== "cours" && (
                   <p className="max-w-xl pb-4 pl-12 text-sm leading-7 whitespace-pre-line text-[#4a3428]">
                     {chapter.body}
                   </p>

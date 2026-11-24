@@ -225,7 +225,9 @@ export function Hud({
           "The wardrobe is open and your character stands in the mirror. Use the panel to create your character, then to choose underwear, tops, pants and shoes. Press Escape to go back to the room."}
         {phase === "sitting" &&
           (chapter
-            ? `${chapter.title}. ${chapter.body}`
+            ? chapter.id === "cours"
+              ? "Courses. The obedience lesson is open in front of you."
+              : `${chapter.title}. ${chapter.body}`
             : `${seat?.label ?? "You are seated"}. The menu is on the board.`)}
       </p>
     </div>

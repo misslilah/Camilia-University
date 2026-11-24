@@ -12,7 +12,7 @@ const CATEGORIES = [
   { id: "cumplay", label: "Cumplay", tint: "from-[#e6d3a1] to-[#b89a5a]" },
 ] as const
 
-export function Courses({ name }: { name: string }) {
+export function Courses({ name, onLeave }: { name: string; onLeave?: () => void }) {
   const who = name.trim() || "Student"
   const [progress, setProgress] = useState<Obedience>(() => loadObedience(who))
   const [open, setOpen] = useState<(typeof CATEGORIES)[number]["id"] | null>(null)
@@ -51,12 +51,13 @@ export function Courses({ name }: { name: string }) {
   }
 
   if (progress.done) {
-    return <Catalog open={open} onOpen={setOpen} />
+    return <Catalog open={open} onOpen={setOpen} onLeave={onLeave} />
   }
 
   const target = LINES[progress.line] ?? LINES[0]
   return (
     <div className="flex h-full flex-col bg-[#f6f1e6] text-[#2a1c14]">
+      {onLeave && <BoardBack onLeave={onLeave} />}
       <div className="min-h-0 flex-1 overflow-auto px-5 py-5 sm:px-8">
         <p className="text-[10px] tracking-[0.32em] text-[#8a6238] uppercase">Obedience</p>
         <h2 className="mt-2 font-serif text-3xl leading-tight">A message from Camilia</h2>
@@ -169,11 +170,31 @@ function Writer({ target, copy, onAccept }: { target: string; copy: number; onAc
   )
 }
 
-function Catalog({ open, onOpen }: { open: (typeof CATEGORIES)[number]["id"] | null; onOpen: (id: (typeof CATEGORIES)[number]["id"] | null) => void }) {
+function BoardBack({ onLeave }: { onLeave: () => void }) {
+  return (
+    <div className="border-b border-[#e7d3b0] px-4 py-3">
+      <button type="button" onClick={onLeave} className="inline-flex items-center gap-1.5 text-sm text-[#6d2c3a]">
+        <ArrowLeft className="h-4 w-4" />
+        Back to the board
+      </button>
+    </div>
+  )
+}
+
+function Catalog({
+  open,
+  onOpen,
+  onLeave,
+}: {
+  open: (typeof CATEGORIES)[number]["id"] | null
+  onOpen: (id: (typeof CATEGORIES)[number]["id"] | null) => void
+  onLeave?: () => void
+}) {
   const category = CATEGORIES.find((item) => item.id === open) ?? null
   if (category) {
     return (
       <div className="flex h-full flex-col bg-[#f6f1e6] text-[#2a1c14]">
+        {onLeave && <BoardBack onLeave={onLeave} />}
         <div className="border-b border-[#e7d3b0] px-4 py-3">
           <button type="button" onClick={() => onOpen(null)} className="inline-flex items-center gap-1.5 text-sm text-[#6d2c3a]">
             <ArrowLeft className="h-4 w-4" />
@@ -191,7 +212,9 @@ function Catalog({ open, onOpen }: { open: (typeof CATEGORIES)[number]["id"] | n
   }
 
   return (
-    <div className="h-full overflow-auto bg-[#f6f1e6] px-5 py-5 text-[#2a1c14] sm:px-8">
+    <div className="flex h-full flex-col bg-[#f6f1e6] text-[#2a1c14]">
+      {onLeave && <BoardBack onLeave={onLeave} />}
+      <div className="min-h-0 flex-1 overflow-auto px-5 py-5 sm:px-8">
       <p className="text-[10px] tracking-[0.32em] text-[#8a6238] uppercase">Courses</p>
       <h2 className="mt-2 font-serif text-3xl">Your studies</h2>
       <p className="mt-2 max-w-md text-sm leading-relaxed text-[#4a3424]">Your first assignment is on record. The rest of the university is still being prepared.</p>
@@ -209,6 +232,7 @@ function Catalog({ open, onOpen }: { open: (typeof CATEGORIES)[number]["id"] | n
           </button>
         ))}
       </div>
+    </div>
     </div>
   )
 }

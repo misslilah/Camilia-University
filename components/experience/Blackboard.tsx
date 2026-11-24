@@ -205,19 +205,21 @@ function ChapterPage({
       >
         {chapter.title}
       </Text>
-      <Text
-        font={CHALK_FONT}
-        position={[0, 0.02, 0]}
-        fontSize={0.34}
-        maxWidth={4.6}
-        color="#f4efe4"
-        anchorX="center"
-        anchorY="middle"
-        lineHeight={1.28}
-        textAlign="center"
-      >
-        {chapter.body}
-      </Text>
+      {chapter.id !== "cours" && (
+        <Text
+          font={CHALK_FONT}
+          position={[0, 0.02, 0]}
+          fontSize={0.34}
+          maxWidth={4.6}
+          color="#f4efe4"
+          anchorX="center"
+          anchorY="middle"
+          lineHeight={1.28}
+          textAlign="center"
+        >
+          {chapter.body}
+        </Text>
+      )}
     </group>
   )
 }

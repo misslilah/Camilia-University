@@ -8,6 +8,7 @@ import { FlatCampus } from "@/components/flat-campus"
 import { Blackboard, Signage } from "@/components/experience/Blackboard"
 import { Director, type LookOffset } from "@/components/experience/Director"
 import { ComputerDesktop, useNarrow } from "@/components/experience/ComputerDesktop"
+import { Courses } from "@/components/experience/Courses"
 import { Doors } from "@/components/experience/Doors"
 import { Enrollment, type Student } from "@/components/experience/Enrollment"
 import { Hall, Lights, Motes } from "@/components/experience/Hall"
@@ -657,6 +658,13 @@ export default function Experience() {
           onNext={continueArrival}
           onSkip={finishArrival}
         />
+      )}
+      {phase === "sitting" && chapterId === "cours" && (
+        <div className="pointer-events-none absolute inset-0 z-30 flex items-end justify-center px-3 pt-16 pb-4 sm:items-center sm:px-16 sm:pt-16 sm:pb-10">
+          <div className="pointer-events-auto h-[min(720px,calc(100%-1rem))] w-full max-w-3xl overflow-hidden rounded-3xl border border-[#e7d3b0] shadow-[0_24px_70px_rgba(0,0,0,0.45)]">
+            <Courses name={student?.name ?? ""} onLeave={closeChapter} />
+          </div>
+        </div>
       )}
       <ComputerDesktop open={phase === "computer"} onLeave={closeComputer} guided={introduced === false} name={student?.name ?? ""} />
       <WardrobePanel
