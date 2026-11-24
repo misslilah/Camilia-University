@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { ArrowLeft } from "lucide-react"
-import { COPIES, LINES, advance, letterMarks, lineReady, loadObedience, saveObedience, type Obedience } from "@/lib/obedience"
+import { COPIES, LINES, advance, handTyped, letterMarks, lineReady, loadObedience, saveObedience, type Obedience } from "@/lib/obedience"
 import { sound } from "@/lib/sound"
 
 const CATEGORIES = [
@@ -155,10 +155,19 @@ function Writer({ target, copy, onAccept }: { target: string; copy: number; onAc
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
-          aria-label="Copy the line"
+          autoComplete="off"
+          aria-label="Write the line by hand"
           aria-invalid={wrong}
           className="absolute inset-0 resize-none bg-transparent px-3 py-2 font-sans text-sm leading-6 text-transparent caret-[#2a1c14] outline-none"
-          onChange={(event) => setValue(event.target.value.replace(/\n/g, ""))}
+          onCopy={(event) => event.preventDefault()}
+          onCut={(event) => event.preventDefault()}
+          onPaste={(event) => event.preventDefault()}
+          onDrop={(event) => event.preventDefault()}
+          onChange={(event) => {
+            const next = handTyped(value, event.target.value)
+            if (next === value) event.target.value = value
+            setValue(next)
+          }}
           onKeyDown={(event) => {
             if (event.key !== "Enter") return
             event.preventDefault()

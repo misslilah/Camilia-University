@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import localFont from "next/font/local"
+import { ClipboardLock } from "@/components/clipboard-lock"
 import "./globals.css"
 
 const serif = localFont({
@@ -29,7 +30,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${serif.variable} ${sans.variable} h-full antialiased`}>
-      <body className="h-full overflow-hidden bg-[#140f0c] text-[#f6f0e6]">{children}</body>
+      <body className="h-full overflow-hidden bg-[#140f0c] text-[#f6f0e6] select-none">
+        <ClipboardLock />
+        {children}
+      </body>
     </html>
   )
 }

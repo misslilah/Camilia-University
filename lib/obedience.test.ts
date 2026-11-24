@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { LINES, advance, letterMarks, lineReady } from "./obedience.ts"
+import { LINES, advance, handTyped, letterMarks, lineReady } from "./obedience.ts"
 
 test("a wrong letter is marked and the line is not ready", () => {
   const marks = letterMarks(LINES[0], "I taxe")
@@ -9,6 +9,16 @@ test("a wrong letter is marked and the line is not ready", () => {
     [false, false, false, false, true, false],
   )
   assert.equal(lineReady(LINES[0], "I taxe"), false)
+})
+
+test("the writing box accepts one keystroke and refuses a pasted line", () => {
+  assert.equal(handTyped("", "I"), "I")
+  assert.equal(handTyped("I take", "I taxe"), "I taxe")
+  assert.equal(handTyped("hello", "h"), "h")
+  assert.equal(handTyped("abcd", "x"), "x")
+  assert.equal(handTyped("", LINES[0]), "")
+  assert.equal(handTyped("I take my", LINES[0]), "I take my")
+  assert.equal(handTyped("abcd", "xy"), "abcd")
 })
 
 test("an exact line is ready and a fifth copy finishes it", () => {

@@ -84,6 +84,14 @@ body {
   height: 100%;
   background: #140f0c;
   color: #f6f0e6;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 body {

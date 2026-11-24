@@ -21,6 +21,26 @@ export function lineReady(target: string, typed: string) {
   return typed === target
 }
 
+export function handTyped(previous: string, next: string) {
+  const clean = next.replace(/\n/g, "")
+  return singleKeystroke(previous, clean) ? clean : previous
+}
+
+function singleKeystroke(previous: string, next: string) {
+  const before = [...previous]
+  const after = [...next]
+  let start = 0
+  const shared = Math.min(before.length, after.length)
+  while (start < shared && before[start] === after[start]) start += 1
+  let prevEnd = before.length
+  let nextEnd = after.length
+  while (prevEnd > start && nextEnd > start && before[prevEnd - 1] === after[nextEnd - 1]) {
+    prevEnd -= 1
+    nextEnd -= 1
+  }
+  return nextEnd - start <= 1
+}
+
 export function advance(state: Obedience): Obedience {
   if (state.done) return state
   if (state.copy + 1 < COPIES) return { done: false, line: state.line, copy: state.copy + 1 }
