@@ -249,7 +249,7 @@ function Desktop({
   useEffect(() => {
     const refresh = () => setMailUnread(missedMail(name))
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== null && !event.key.startsWith("camilia-mail")) return
+      if (event.key !== null && !event.key.startsWith("camilia-mail") && event.key !== "camilia-obedience") return
       refresh()
     }
     refresh()

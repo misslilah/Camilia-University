@@ -2,7 +2,8 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import { ArrowLeft, Trash2, Undo2 } from "lucide-react"
-import { campusAddress, lettersIn, loadGone, loadRead, loadTrash, MAIL_IDS, saveGone, saveRead, saveTrash, type MailFolder } from "@/lib/mail"
+import { campusAddress, GIFT_MAIL_ID, inboxMailIds, lettersIn, loadGone, loadRead, loadTrash, saveGone, saveRead, saveTrash, type MailFolder } from "@/lib/mail"
+import { loadObedience } from "@/lib/obedience"
 import { cn } from "@/lib/utils"
 
 type Letter = {
@@ -15,6 +16,19 @@ type Letter = {
 }
 
 const LETTERS: Letter[] = [
+  {
+    id: GIFT_MAIL_ID,
+    from: "Camilia",
+    fromAddress: "camilia@university.mail",
+    subject: "A welcome gift",
+    when: "Today",
+    paragraphs: (name) => [
+      `${name},`,
+      "You finished the first course.",
+      "To congratulate you, and as a welcome gift, check your nightstand.",
+      "Camilia",
+    ],
+  },
   {
     id: "desk",
     from: "Camilia",
@@ -62,16 +76,32 @@ export function Mail({ name }: { name: string }) {
   const [read, setRead] = useState<string[]>(() => loadRead(pseudo))
   const [trashed, setTrashed] = useState<string[]>(() => loadTrash(pseudo))
   const [gone, setGone] = useState<string[]>(() => loadGone(pseudo))
+  const [gift, setGift] = useState(() => loadObedience(pseudo).done)
 
   useEffect(() => {
     setRead(loadRead(pseudo))
     setTrashed(loadTrash(pseudo))
     setGone(loadGone(pseudo))
+    setGift(loadObedience(pseudo).done)
     setFolder("inbox")
     setOpenId(null)
   }, [pseudo])
 
-  const shown = lettersIn(MAIL_IDS, trashed, gone, folder)
+  useEffect(() => {
+    const refresh = () => setGift(loadObedience(pseudo).done)
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== "camilia-obedience") return
+      refresh()
+    }
+    window.addEventListener("camilia-mail", refresh)
+    window.addEventListener("storage", onStorage)
+    return () => {
+      window.removeEventListener("camilia-mail", refresh)
+      window.removeEventListener("storage", onStorage)
+    }
+  }, [pseudo])
+
+  const shown = lettersIn(inboxMailIds(gift), trashed, gone, folder)
     .map((id) => LETTERS.find((letter) => letter.id === id))
     .filter((letter): letter is Letter => Boolean(letter))
   const open = shown.find((letter) => letter.id === openId) ?? null

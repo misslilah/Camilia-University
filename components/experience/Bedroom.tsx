@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useFrame } from "@react-three/fiber"
 import { Text } from "@react-three/drei"
 import { BackSide, DoubleSide, Object3D, PlaneGeometry, type Group, type PointLight, type SpotLight } from "three"
@@ -24,6 +24,8 @@ import {
 } from "@/lib/scene"
 import { getCells, getServerCells, monitorIcons, subscribeCells } from "@/lib/desktop"
 import { missedMail } from "@/lib/mail"
+import { loadBottle, saveBottle, type BottlePlace } from "@/lib/nightstand"
+import { loadObedience } from "@/lib/obedience"
 import { useLibrary } from "@/lib/patreon"
 import { loadNotices, noticeUpdate } from "@/lib/patreon-notices"
 import { getRoomTextures, repaintMonitor, getTextures } from "@/lib/textures"
@@ -60,6 +62,40 @@ function Block({
   )
 }
 
+function useCourseGift(name: string) {
+  const [ready, setReady] = useState(() => loadObedience(name).done)
+  useEffect(() => {
+    const refresh = () => setReady(loadObedience(name).done)
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== "camilia-obedience") return
+      refresh()
+    }
+    refresh()
+    window.addEventListener("camilia-mail", refresh)
+    window.addEventListener("storage", onStorage)
+    return () => {
+      window.removeEventListener("camilia-mail", refresh)
+      window.removeEventListener("storage", onStorage)
+    }
+  }, [name])
+  return ready
+}
+
+function useBottlePlace(name: string) {
+  const [place, setPlace] = useState<BottlePlace>(() => loadBottle(name))
+  useEffect(() => {
+    setPlace(loadBottle(name))
+  }, [name])
+  const toggle = useCallback(() => {
+    setPlace((current) => {
+      const next: BottlePlace = current === "desk" ? "drawer" : "desk"
+      saveBottle(name, next)
+      return next
+    })
+  }, [name])
+  return [place, toggle] as const
+}
+
 export function Bedroom({
   phase,
   reduced,
@@ -77,14 +113,18 @@ export function Bedroom({
   onWardrobe: () => void
   onComputer: () => void
 }) {
+  const who = name.trim() || "Student"
+  const gift = useCourseGift(who)
+  const [bottlePlace, toggleBottle] = useBottlePlace(who)
+  const bottle = gift ? bottlePlace : null
   const active = inRoom(phase)
   return (
     <group>
       <group position={ROOM_ORIGIN} visible={phase !== "inside" && phase !== "sitting" && phase !== "opening" && phase !== "leaving"}>
         <Shell />
         <Bed />
-        <Nightstand />
-        <Desk phase={phase} name={name} onOpen={onComputer} />
+        <Nightstand phase={phase} reduced={reduced} bottle={bottle === "drawer"} onBottle={toggleBottle} />
+        <Desk phase={phase} name={name} onOpen={onComputer} bottle={bottle === "desk"} onBottle={toggleBottle} />
         <DeskChair />
         <Wardrobe phase={phase} onOpen={onWardrobe} reduced={reduced} />
         <Mirror lit={active} />
@@ -244,14 +284,154 @@ function Bed() {
   )
 }
 
-function Nightstand() {
+const NIGHTSTAND = { w: 0.42, d: 0.4, h: 0.54, t: 0.016 }
+const DRAWER_SLIDE = 0.24
+
+function PoppersBottle({
+  active,
+  onToggle,
+  position,
+}: {
+  active: boolean
+  onToggle: () => void
+  position: [number, number, number]
+}) {
+  const [hover, setHover] = useState(false)
+  const glow = hover ? "#5a3a16" : "#000000"
+  return (
+    <group
+      position={position}
+      onClick={(event) => {
+        if (!active) return
+        event.stopPropagation()
+        if (event.delta >= 10) return
+        setHover(false)
+        setCursor("auto")
+        onToggle()
+      }}
+      onPointerOver={(event) => {
+        if (!active) return
+        event.stopPropagation()
+        setHover(true)
+        setCursor("pointer")
+      }}
+      onPointerOut={() => {
+        setHover(false)
+        if (active) setCursor("auto")
+      }}
+    >
+      <mesh position={[0, 0.1, 0]}>
+        <boxGeometry args={[0.12, 0.22, 0.1]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      <mesh position={[0, 0.08, 0]} castShadow>
+        <cylinderGeometry args={[0.026, 0.03, 0.16, 20]} />
+        <meshStandardMaterial color="#9a4e16" roughness={0.28} metalness={0.08} emissive={glow} emissiveIntensity={0.45} />
+      </mesh>
+      <mesh position={[0, 0.174, 0]}>
+        <cylinderGeometry args={[0.012, 0.015, 0.028, 16]} />
+        <meshStandardMaterial color="#7a3c10" roughness={0.32} emissive={glow} emissiveIntensity={0.3} />
+      </mesh>
+      <mesh position={[0, 0.196, 0]} castShadow>
+        <cylinderGeometry args={[0.016, 0.016, 0.018, 16]} />
+        <meshStandardMaterial color={hover ? "#f2efe7" : "#1a1a1a"} metalness={0.5} roughness={0.32} />
+      </mesh>
+      <mesh position={[0.09, 0.1, 0.02]} rotation={[0.6, 0, 0]}>
+        <planeGeometry args={[0.13, 0.04]} />
+        <meshStandardMaterial color="#f4efe4" roughness={0.8} side={DoubleSide} />
+      </mesh>
+      <Suspense fallback={null}>
+        <Text
+          font={SERIF_FONT}
+          position={[0.09, 0.1, 0.028]}
+          rotation={[0.6, 0, 0]}
+          fontSize={0.022}
+          color="#6d2c3a"
+          anchorX="center"
+          anchorY="middle"
+        >
+          Poppers
+        </Text>
+      </Suspense>
+    </group>
+  )
+}
+
+function Nightstand({
+  phase,
+  reduced,
+  bottle,
+  onBottle,
+}: {
+  phase: Phase
+  reduced: boolean
+  bottle: boolean
+  onBottle: () => void
+}) {
   const x = -HALF_W + 1.25
   const z = -HALF_D + 0.26
+  const { w, d, h, t } = NIGHTSTAND
+  const enabled = phase === "room"
+  const [hover, setHover] = useState(false)
+  const [open, setOpen] = useState(false)
+  const amount = useRef(0)
+  const drawer = useRef<Group>(null)
+  const glow = hover && enabled ? "#5a3a16" : "#000000"
+
+  useEffect(() => {
+    if (!enabled) setCursor("auto")
+  }, [enabled])
+
+  useFrame((_, delta) => {
+    const target = open ? 1 : 0
+    const speed = reduced ? 7 : 2.4
+    const current = amount.current
+    amount.current = current + Math.sign(target - current) * Math.min(Math.abs(target - current), delta * speed)
+    if (drawer.current) drawer.current.position.z = smootherstep(amount.current) * DRAWER_SLIDE
+  })
+
   return (
-    <group position={[x, 0, z]}>
-      <Block box={[0, 0.27, 0, 0.42, 0.54, 0.4]} color="#f2efe7" roughness={0.6} />
-      <Block box={[0, 0.36, 0.205, 0.36, 0.005, 0.01]} color="#c8c2b4" shadow={false} />
-      <Block box={[0, 0.42, 0.212, 0.1, 0.02, 0.02]} color="#9aa0a8" metalness={0.7} roughness={0.3} shadow={false} />
+    <group
+      position={[x, 0, z]}
+      onClick={(event) => {
+        event.stopPropagation()
+        if (enabled && event.delta < 10) setOpen((value) => !value)
+      }}
+      onPointerOver={(event) => {
+        event.stopPropagation()
+        if (!enabled) return
+        setHover(true)
+        setCursor("pointer")
+      }}
+      onPointerOut={() => {
+        setHover(false)
+        setCursor("auto")
+      }}
+    >
+      <Block box={[-w / 2 + t / 2, h / 2, 0, t, h, d]} color="#f2efe7" roughness={0.6} />
+      <Block box={[w / 2 - t / 2, h / 2, 0, t, h, d]} color="#f2efe7" roughness={0.6} />
+      <Block box={[0, h / 2, -d / 2 + t / 2, w - 2 * t, h, t]} color="#e7dcc8" roughness={0.7} />
+      <Block box={[0, h - t / 2, 0, w, t, d]} color="#f2efe7" roughness={0.55} />
+      <Block box={[0, t / 2, 0, w, t, d]} color="#f2efe7" roughness={0.6} />
+      <Block box={[0, 0.146, d / 2 - t / 2, w - 2 * t, 0.26, t]} color="#f2efe7" roughness={0.6} />
+      <mesh position={[0, 0.46, d / 2 - t / 2]} castShadow receiveShadow>
+        <boxGeometry args={[w - 2 * t - 0.012, 0.12, t]} />
+        <meshStandardMaterial color="#f2efe7" roughness={0.6} emissive={glow} emissiveIntensity={0.35} />
+      </mesh>
+
+      <group ref={drawer}>
+        <mesh position={[0, 0.34, d / 2 - t / 2]} castShadow receiveShadow>
+          <boxGeometry args={[w - 2 * t - 0.016, 0.12, t]} />
+          <meshStandardMaterial color="#f7f4ee" roughness={0.58} emissive={glow} emissiveIntensity={0.35} />
+        </mesh>
+        <Block box={[0, 0.34, d / 2 + 0.012, 0.1, 0.02, 0.02]} color="#9aa0a8" metalness={0.7} roughness={0.3} shadow={false} />
+        <Block box={[0, 0.302, 0.02, w - 2 * t - 0.028, 0.012, 0.3]} color="#e7dcc8" roughness={0.75} />
+        <Block box={[-0.174, 0.345, 0.02, 0.01, 0.08, 0.3]} color="#efeae0" roughness={0.65} />
+        <Block box={[0.174, 0.345, 0.02, 0.01, 0.08, 0.3]} color="#efeae0" roughness={0.65} />
+        <Block box={[0, 0.345, -0.13, 0.348, 0.08, 0.01]} color="#e7dcc8" roughness={0.7} />
+        {bottle && <PoppersBottle active={enabled && open} onToggle={onBottle} position={[0.02, 0.308, 0.08]} />}
+      </group>
+
       <mesh position={[0.06, 0.58, -0.02]} castShadow>
         <cylinderGeometry args={[0.07, 0.08, 0.06, 20]} />
         <meshStandardMaterial color="#2f4f7c" roughness={0.5} />
@@ -269,7 +449,19 @@ function Nightstand() {
   )
 }
 
-function Desk({ phase, name, onOpen }: { phase: Phase; name: string; onOpen: () => void }) {
+function Desk({
+  phase,
+  name,
+  onOpen,
+  bottle,
+  onBottle,
+}: {
+  phase: Phase
+  name: string
+  onOpen: () => void
+  bottle: boolean
+  onBottle: () => void
+}) {
   const t = useMemo(() => getRoomTextures(), [])
   const cells = useSyncExternalStore(subscribeCells, getCells, getServerCells)
   const library = useLibrary()
@@ -278,8 +470,16 @@ function Desk({ phase, name, onOpen }: { phase: Phase; name: string; onOpen: () 
 
   useEffect(() => {
     const bump = () => setMailStamp((value) => value + 1)
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== "camilia-obedience" && !event.key.startsWith("camilia-mail")) return
+      bump()
+    }
     window.addEventListener("camilia-mail", bump)
-    return () => window.removeEventListener("camilia-mail", bump)
+    window.addEventListener("storage", onStorage)
+    return () => {
+      window.removeEventListener("camilia-mail", bump)
+      window.removeEventListener("storage", onStorage)
+    }
   }, [])
 
   useEffect(() => {
@@ -373,6 +573,7 @@ function Desk({ phase, name, onOpen }: { phase: Phase; name: string; onOpen: () 
         <cylinderGeometry args={[0.04, 0.035, 0.1, 18]} />
         <meshStandardMaterial color="#e85d3a" roughness={0.5} />
       </mesh>
+      {bottle && <PoppersBottle active={enabled} onToggle={onBottle} position={[0.48, 0.758, 0.24]} />}
 
       <group position={[0.46, 0, 0.02]}>
         <Block box={[0, 0.25, 0, 0.21, 0.46, 0.46]} color="#16181d" metalness={0.3} roughness={0.4} />

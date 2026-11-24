@@ -64,9 +64,13 @@ export function loadObedience(name: string): Obedience {
 }
 
 export function saveObedience(name: string, state: Obedience) {
+  const wasDone = loadObedience(name).done
   try {
     window.localStorage.setItem(KEY, JSON.stringify({ name, ...state }))
   } catch {
     // The page still keeps this visit when storage is blocked.
+  }
+  if (state.done && !wasDone && typeof window !== "undefined") {
+    window.dispatchEvent(new Event("camilia-mail"))
   }
 }

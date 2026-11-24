@@ -12,16 +12,30 @@ export function campusAddress(name: string) {
 export type MailFolder = "inbox" | "trash"
 
 export const MAIL_IDS = ["desk", "registrar", "board"] as const
+export const GIFT_MAIL_ID = "gift"
+
+export function inboxMailIds(obedienceDone: boolean) {
+  return obedienceDone ? [GIFT_MAIL_ID, ...MAIL_IDS] : [...MAIL_IDS]
+}
 
 export function unreadCount(inboxIds: readonly string[], readIds: readonly string[]) {
   const read = new Set(readIds)
   return inboxIds.filter((id) => !read.has(id)).length
 }
 
+function obedienceDone(name: string) {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem("camilia-obedience") || "") as { name?: unknown; done?: unknown }
+    return parsed?.name === name && parsed.done === true
+  } catch {
+    return false
+  }
+}
+
 export function missedMail(name: string) {
   if (typeof window === "undefined") return 0
   const who = name.trim() || "Student"
-  const inbox = lettersIn(MAIL_IDS, loadTrash(who), loadGone(who), "inbox")
+  const inbox = lettersIn(inboxMailIds(obedienceDone(who)), loadTrash(who), loadGone(who), "inbox")
   return unreadCount(inbox, loadRead(who))
 }
 
