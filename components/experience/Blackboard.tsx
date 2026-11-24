@@ -186,15 +186,17 @@ function ChapterPage({
 }) {
   return (
     <group>
-      <ChalkLine
-        text="←   Back to the board"
-        position={[-2.15, 1.12, 0]}
-        width={2.4}
-        fontSize={0.22}
-        opacity={1}
-        enabled={enabled}
-        onSelect={onBack}
-      />
+      {chapter.id !== "cours" && (
+        <ChalkLine
+          text="←   Back to the board"
+          position={[-2.15, 1.12, 0]}
+          width={2.4}
+          fontSize={0.22}
+          opacity={1}
+          enabled={enabled}
+          onSelect={onBack}
+        />
+      )}
       <Text
         font={CHALK_FONT}
         position={[0, 0.62, 0]}

@@ -181,10 +181,14 @@ function Writer({ target, copy, onAccept }: { target: string; copy: number; onAc
 
 function BoardBack({ onLeave }: { onLeave: () => void }) {
   return (
-    <div className="border-b border-[#e7d3b0] px-4 py-3">
-      <button type="button" onClick={onLeave} className="inline-flex items-center gap-1.5 text-sm text-[#6d2c3a]">
+    <div className="px-3 py-2">
+      <button
+        type="button"
+        onClick={onLeave}
+        aria-label="Back"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#6d2c3a] hover:bg-[#6d2c3a]/10"
+      >
         <ArrowLeft className="h-4 w-4" />
-        Back to the board
       </button>
     </div>
   )
@@ -203,13 +207,7 @@ function Catalog({
   if (category) {
     return (
       <div className="flex h-full flex-col bg-[#f6f1e6] text-[#2a1c14]">
-        {onLeave && <BoardBack onLeave={onLeave} />}
-        <div className="border-b border-[#e7d3b0] px-4 py-3">
-          <button type="button" onClick={() => onOpen(null)} className="inline-flex items-center gap-1.5 text-sm text-[#6d2c3a]">
-            <ArrowLeft className="h-4 w-4" />
-            Courses
-          </button>
-        </div>
+        <BoardBack onLeave={() => onOpen(null)} />
         <div className="grid flex-1 place-items-center px-6 text-center">
           <div>
             <p className="text-[10px] tracking-[0.32em] text-[#8a6238] uppercase">{category.label}</p>
