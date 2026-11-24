@@ -8,6 +8,7 @@ import {
   Globe,
   GraduationCap,
   LogOut,
+  Mail,
   Maximize2,
   Minimize2,
   Minus,
@@ -23,6 +24,7 @@ import {
 import { AdminDesk } from "@/components/experience/Admin"
 import { Browser } from "@/components/experience/browser/Browser"
 import { Patreon, PatreonMark } from "@/components/experience/Patreon"
+import { Mail as Mailbox } from "@/components/experience/Mail"
 import { Profile } from "@/components/experience/Profile"
 import { reloadLibrary, useLibrary, usePatreonAdmin } from "@/lib/patreon"
 import { loadNotices, noticeUpdate, saveNotices, type NoticePost } from "@/lib/patreon-notices"
@@ -32,7 +34,7 @@ import { useScreenRect, type ScreenRect } from "@/lib/screen-rect"
 import { sound } from "@/lib/sound"
 import { cn } from "@/lib/utils"
 
-type AppId = "files" | "courses" | "browser" | "notes" | "trash" | "patreon" | "profile" | "admin"
+type AppId = "files" | "courses" | "browser" | "notes" | "trash" | "patreon" | "profile" | "mail" | "admin"
 type AppIcon = LucideIcon | ComponentType<{ className?: string; strokeWidth?: number }>
 
 const APPS: { id: AppId; name: string; icon: AppIcon; tint: string }[] = [
@@ -43,6 +45,7 @@ const APPS: { id: AppId; name: string; icon: AppIcon; tint: string }[] = [
   { id: "trash", name: "Trash", icon: Trash2, tint: "from-[#8b93a3] to-[#5d6575]" },
   { id: "patreon", name: "Patreon", icon: PatreonMark, tint: "from-[#ff8f6b] to-[#e25b32]" },
   { id: "profile", name: "Profil", icon: Award, tint: "from-[#8d3d4e] to-[#5c2433]" },
+  { id: "mail", name: "Mail", icon: Mail, tint: "from-[#c45b6a] to-[#8d3044]" },
   { id: "admin", name: "Admin", icon: Shield, tint: "from-[#c6a15a] to-[#8a6428]" },
 ]
 
@@ -54,13 +57,14 @@ const INITIAL_CELLS: Record<AppId, Cell> = {
   trash: { col: 0, row: 4 },
   patreon: { col: 1, row: 0 },
   profile: { col: 1, row: 1 },
+  mail: { col: 1, row: 3 },
   admin: { col: 1, row: 2 },
 }
 
 const app = (id: AppId) => APPS.find((item) => item.id === id) ?? APPS[0]
 
 function isWorkspace(id: AppId) {
-  return id === "browser" || id === "patreon" || id === "admin" || id === "profile"
+  return id === "browser" || id === "patreon" || id === "admin" || id === "profile" || id === "mail"
 }
 
 const TASKBAR = 48
@@ -234,7 +238,7 @@ function Desktop({
       const { w, h } = size()
       const n = list.length
       if (isWorkspace(id)) {
-        const preferred = id === "browser" ? { w: 980, h: 660 } : id === "profile" ? { w: 460, h: 700 } : { w: 760, h: 620 }
+        const preferred = id === "browser" ? { w: 980, h: 660 } : id === "profile" ? { w: 460, h: 700 } : id === "mail" ? { w: 860, h: 560 } : { w: 760, h: 620 }
         const width = Math.min(preferred.w, w - 40)
         const height = Math.min(preferred.h, h - 32)
         const x = Math.max(12, (w - width) / 2 + n * 18)
@@ -645,6 +649,8 @@ function AppWindow({
             <AdminDesk />
           ) : win.app === "profile" ? (
             <Profile name={name} />
+          ) : win.app === "mail" ? (
+            <Mailbox name={name} />
           ) : (
             <Patreon />
           )}
