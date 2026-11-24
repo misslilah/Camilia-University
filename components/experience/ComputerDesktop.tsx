@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType, type PointerEvent as ReactPointerEvent } from "react"
 import {
   ArrowLeft,
+  Award,
   Folder,
   Globe,
   GraduationCap,
@@ -22,6 +23,7 @@ import {
 import { AdminDesk } from "@/components/experience/Admin"
 import { Browser } from "@/components/experience/browser/Browser"
 import { Patreon, PatreonMark } from "@/components/experience/Patreon"
+import { Profile } from "@/components/experience/Profile"
 import { reloadLibrary, useLibrary, usePatreonAdmin } from "@/lib/patreon"
 import { loadNotices, noticeUpdate, saveNotices, type NoticePost } from "@/lib/patreon-notices"
 import { Button } from "@/components/ui/button"
@@ -30,7 +32,7 @@ import { useScreenRect, type ScreenRect } from "@/lib/screen-rect"
 import { sound } from "@/lib/sound"
 import { cn } from "@/lib/utils"
 
-type AppId = "files" | "courses" | "browser" | "notes" | "trash" | "patreon" | "admin"
+type AppId = "files" | "courses" | "browser" | "notes" | "trash" | "patreon" | "profile" | "admin"
 type AppIcon = LucideIcon | ComponentType<{ className?: string; strokeWidth?: number }>
 
 const APPS: { id: AppId; name: string; icon: AppIcon; tint: string }[] = [
@@ -40,6 +42,7 @@ const APPS: { id: AppId; name: string; icon: AppIcon; tint: string }[] = [
   { id: "notes", name: "Notes", icon: NotebookPen, tint: "from-[#4ac17a] to-[#2b8d55]" },
   { id: "trash", name: "Trash", icon: Trash2, tint: "from-[#8b93a3] to-[#5d6575]" },
   { id: "patreon", name: "Patreon", icon: PatreonMark, tint: "from-[#ff8f6b] to-[#e25b32]" },
+  { id: "profile", name: "Profil", icon: Award, tint: "from-[#8d3d4e] to-[#5c2433]" },
   { id: "admin", name: "Admin", icon: Shield, tint: "from-[#c6a15a] to-[#8a6428]" },
 ]
 
@@ -50,13 +53,14 @@ const INITIAL_CELLS: Record<AppId, Cell> = {
   notes: { col: 0, row: 3 },
   trash: { col: 0, row: 4 },
   patreon: { col: 1, row: 0 },
-  admin: { col: 1, row: 1 },
+  profile: { col: 1, row: 1 },
+  admin: { col: 1, row: 2 },
 }
 
 const app = (id: AppId) => APPS.find((item) => item.id === id) ?? APPS[0]
 
 function isWorkspace(id: AppId) {
-  return id === "browser" || id === "patreon" || id === "admin"
+  return id === "browser" || id === "patreon" || id === "admin" || id === "profile"
 }
 
 const TASKBAR = 48
@@ -98,10 +102,12 @@ export function ComputerDesktop({
   open,
   onLeave,
   guided = false,
+  name = "",
 }: {
   open: boolean
   onLeave: () => void
   guided?: boolean
+  name?: string
 }) {
   const live = useScreenRect()
   const [last, setLast] = useState<ScreenRect | null>(null)
@@ -155,7 +161,7 @@ export function ComputerDesktop({
                 : { width: rect.width / scale, height: rect.height / scale, transform: `scale(${scale})` }
             }
           >
-            <Desktop active={visible} scale={scale} onLeave={onLeave} guided={guided} />
+            <Desktop active={visible} scale={scale} onLeave={onLeave} guided={guided} name={name} />
           </div>
         )}
       </div>
@@ -168,11 +174,13 @@ function Desktop({
   scale,
   onLeave,
   guided,
+  name,
 }: {
   active: boolean
   scale: number
   onLeave: () => void
   guided: boolean
+  name: string
 }) {
   const area = useRef<HTMLDivElement>(null)
   const [cells, setCells] = useState<Record<AppId, Cell>>(INITIAL_CELLS)
@@ -226,7 +234,7 @@ function Desktop({
       const { w, h } = size()
       const n = list.length
       if (isWorkspace(id)) {
-        const preferred = id === "browser" ? { w: 980, h: 660 } : { w: 760, h: 620 }
+        const preferred = id === "browser" ? { w: 980, h: 660 } : id === "profile" ? { w: 460, h: 700 } : { w: 760, h: 620 }
         const width = Math.min(preferred.w, w - 40)
         const height = Math.min(preferred.h, h - 32)
         const x = Math.max(12, (w - width) / 2 + n * 18)
@@ -420,6 +428,7 @@ function Desktop({
             onChange={(patch) => setWindows((list) => list.map((item) => (item.app === win.app ? { ...item, ...patch } : item)))}
             onMinimize={() => minimize(win.app)}
             onClose={() => close(win.app)}
+            name={name}
           />
         ))}
 
@@ -512,6 +521,7 @@ function AppWindow({
   onChange,
   onMinimize,
   onClose,
+  name,
 }: {
   win: Win
   focused: boolean
@@ -521,6 +531,7 @@ function AppWindow({
   onChange: (patch: Partial<Win>) => void
   onMinimize: () => void
   onClose: () => void
+  name: string
 }) {
   const grab = useRef<{ x: number; y: number; wx: number; wy: number } | null>(null)
   const stretch = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
@@ -628,7 +639,15 @@ function AppWindow({
       </header>
       {workspace ? (
         <div className="min-h-0 flex-1">
-          {win.app === "browser" ? <Browser active={focused && !win.minimized} /> : win.app === "admin" ? <AdminDesk /> : <Patreon />}
+          {win.app === "browser" ? (
+            <Browser active={focused && !win.minimized} />
+          ) : win.app === "admin" ? (
+            <AdminDesk />
+          ) : win.app === "profile" ? (
+            <Profile name={name} />
+          ) : (
+            <Patreon />
+          )}
         </div>
       ) : (
         <div className="flex flex-col items-center gap-3 px-6 pt-7 pb-8 text-center">

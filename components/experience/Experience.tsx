@@ -658,7 +658,7 @@ export default function Experience() {
           onSkip={finishArrival}
         />
       )}
-      <ComputerDesktop open={phase === "computer"} onLeave={closeComputer} guided={introduced === false} />
+      <ComputerDesktop open={phase === "computer"} onLeave={closeComputer} guided={introduced === false} name={student?.name ?? ""} />
       <WardrobePanel
         open={phase === "wardrobe"}
         character={character}
