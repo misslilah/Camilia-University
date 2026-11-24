@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "lib/patreon-access.test.ts", "lib/db.test.ts", "lib/student-name.test.ts", "lib/resumable.test.ts", "lib/roster.test.ts"]
+  "exclude": ["node_modules", "lib/patreon-access.test.ts", "lib/patreon-notices.test.ts", "lib/db.test.ts", "lib/student-name.test.ts", "lib/resumable.test.ts", "lib/roster.test.ts"]
 }

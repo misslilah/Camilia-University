@@ -313,6 +313,16 @@ export function deleteMedia(id: string) {
   })
 }
 
+export function reloadLibrary() {
+  return enqueue(async () => {
+    if (state.progress) return
+    const fresh = await readStatus().catch(() => null)
+    if (!fresh) return
+    state = { ...fresh.status, ready: true, error: fresh.error, progress: null }
+    emit()
+  })
+}
+
 export function refreshMembership() {
   return enqueue(async () => {
     await ensureLoaded()

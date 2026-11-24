@@ -22,7 +22,8 @@ import {
 import { AdminDesk } from "@/components/experience/Admin"
 import { Browser } from "@/components/experience/browser/Browser"
 import { Patreon, PatreonMark } from "@/components/experience/Patreon"
-import { useLibrary, usePatreonAdmin } from "@/lib/patreon"
+import { reloadLibrary, useLibrary, usePatreonAdmin } from "@/lib/patreon"
+import { loadNotices, noticeUpdate, saveNotices, type NoticePost } from "@/lib/patreon-notices"
 import { Button } from "@/components/ui/button"
 import { PANEL_BREAKPOINT } from "@/lib/scene"
 import { useScreenRect, type ScreenRect } from "@/lib/screen-rect"
@@ -186,6 +187,10 @@ function Desktop({
   const menuOpen = menu && active
   const library = useLibrary()
   const apps = library.admin ? APPS : APPS.filter((item) => item.id !== "admin")
+  const [badge, setBadge] = useState(false)
+  const [toasts, setToasts] = useState<NoticePost[]>([])
+  const noticed = useRef<{ who: string; memory: ReturnType<typeof loadNotices> } | null>(null)
+  const patreonOpen = windows.some((win) => win.app === "patreon" && !win.minimized)
 
   useEffect(() => {
     if (library.admin) return
@@ -201,12 +206,14 @@ function Desktop({
   const focused = windows.filter((win) => !win.minimized).sort((a, b) => b.z - a.z)[0]?.app ?? null
 
   const raise = (id: AppId) => {
+    if (id === "patreon") setToasts([])
     top.current += 1
     const z = top.current
     setWindows((list) => list.map((win) => (win.app === id ? { ...win, z, minimized: false } : win)))
   }
 
   const openApp = (id: AppId) => {
+    if (id === "patreon") setToasts([])
     setMenu(false)
     setSelected(id)
     sound.click()
@@ -235,6 +242,40 @@ function Desktop({
 
   const minimize = (id: AppId) => setWindows((list) => list.map((win) => (win.app === id ? { ...win, minimized: true } : win)))
   const close = (id: AppId) => setWindows((list) => list.filter((win) => win.app !== id))
+
+  useEffect(() => {
+    if (!active) return
+    void reloadLibrary()
+    const id = window.setInterval(() => void reloadLibrary(), 20_000)
+    return () => window.clearInterval(id)
+  }, [active])
+
+  useEffect(() => {
+    if (!active || guided || !library.ready || !library.connected) return
+    const who = library.name?.trim() || "member"
+    if (!noticed.current || noticed.current.who !== who) noticed.current = { who, memory: loadNotices(who) }
+    const posts = library.items
+      .filter((item) => !item.sample && (item.kind === "audio" || item.kind === "video"))
+      .map((item) => ({ id: item.id, kind: item.kind, name: item.name }))
+    const next = noticeUpdate(noticed.current.memory, posts, patreonOpen)
+    noticed.current = { who, memory: next.memory }
+    saveNotices(who, next.memory)
+    setBadge(next.badge)
+    if (next.fresh.length === 0) return
+    setToasts((list) => {
+      const shown = new Set(list.map((item) => item.id))
+      const added = next.fresh.filter((item) => !shown.has(item.id))
+      return added.length ? [...added, ...list].slice(0, 3) : list
+    })
+  }, [active, guided, library.connected, library.items, library.name, library.ready, patreonOpen])
+
+  useEffect(() => {
+    if (toasts.length === 0) return
+    const timers = toasts.map((toast) =>
+      window.setTimeout(() => setToasts((list) => list.filter((item) => item.id !== toast.id)), 8000),
+    )
+    return () => timers.forEach((timer) => window.clearTimeout(timer))
+  }, [toasts])
 
   const iconDown = (id: AppId, event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return
@@ -319,7 +360,7 @@ function Desktop({
             <button
               key={item.id}
               type="button"
-              aria-label={item.name}
+              aria-label={item.id === "patreon" && badge ? "Patreon, 1 new" : item.name}
               aria-pressed={selected === item.id}
               onPointerDown={(event) => iconDown(item.id, event)}
               onPointerMove={iconMove}
@@ -348,13 +389,20 @@ function Desktop({
                 top: dragging ? drag.y : CELL.pad + cell.row * CELL.h,
               }}
             >
-              <span
-                className={cn(
-                  "grid h-12 w-12 place-items-center rounded-[14px] bg-gradient-to-br shadow-[0_6px_16px_rgba(0,0,0,0.35)]",
-                  item.tint,
+              <span className="relative">
+                <span
+                  className={cn(
+                    "grid h-12 w-12 place-items-center rounded-[14px] bg-gradient-to-br shadow-[0_6px_16px_rgba(0,0,0,0.35)]",
+                    item.tint,
+                  )}
+                >
+                  <Icon className="h-6 w-6 text-white" strokeWidth={1.8} />
+                </span>
+                {item.id === "patreon" && badge && (
+                  <span className="absolute -top-1.5 -right-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[#e23b3b] px-1 text-[11px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(0,0,0,0.45)]">
+                    1
+                  </span>
                 )}
-              >
-                <Icon className="h-6 w-6 text-white" strokeWidth={1.8} />
               </span>
               <span className="text-center text-[12px] leading-tight [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">{item.name}</span>
             </button>
@@ -376,6 +424,29 @@ function Desktop({
         ))}
 
         {menuOpen && <StartMenu apps={apps} onOpen={openApp} onLeave={onLeave} guided={guided} />}
+        {toasts.length > 0 && (
+          <div className="pointer-events-none absolute right-3 bottom-3 z-40 flex w-[min(280px,calc(100%-24px))] flex-col gap-2">
+            {toasts.map((toast) => (
+              <button
+                key={toast.id}
+                type="button"
+                onClick={() => {
+                  setToasts([])
+                  openApp("patreon")
+                }}
+                className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-white/15 bg-[#14213f]/92 px-3 py-2.5 text-left shadow-[0_16px_40px_rgba(0,0,0,0.45)] backdrop-blur-md hover:bg-[#1b2d56]"
+              >
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#ff8f6b] to-[#e25b32]">
+                  <PatreonMark className="h-5 w-5 text-white" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[13px] font-medium text-white">{toast.kind === "audio" ? "New audio" : "New video"}</span>
+                  <span className="block truncate text-[12px] text-white/70">{toast.name}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <Taskbar
