@@ -190,12 +190,12 @@ function characterOf(value: unknown) {
 
 async function storedProgress(userId: string) {
   const file = await downloadObject(progressPath(userId), null)
-  if (!file) return { character: null, introduced: false }
+  if (!file) return { character: null, introduced: false, obedience: false }
   try {
-    const parsed = JSON.parse(file.bytes.toString("utf8")) as { character?: unknown; introduced?: unknown }
-    return { character: characterOf(parsed.character), introduced: parsed.introduced === true }
+    const parsed = JSON.parse(file.bytes.toString("utf8")) as { character?: unknown; introduced?: unknown; obedience?: unknown }
+    return { character: characterOf(parsed.character), introduced: parsed.introduced === true, obedience: parsed.obedience === true }
   } catch {
-    return { character: null, introduced: false }
+    return { character: null, introduced: false, obedience: false }
   }
 }
 
@@ -203,23 +203,24 @@ export async function readProgress(request: NextRequest) {
   const session = await current(request)
   if (!session) return NextResponse.json({ error: "Sign in to open your student record." }, { status: 401 })
   const saved = await storedProgress(session.userId)
-  return NextResponse.json({ character: saved.character, introduced: saved.introduced })
+  return NextResponse.json({ character: saved.character, introduced: saved.introduced, obedience: saved.obedience })
 }
 
 export async function writeProgress(request: NextRequest) {
   if (refused(request)) return NextResponse.json({ error: "The request was refused." }, { status: 403 })
   const session = await current(request)
   if (!session) return NextResponse.json({ error: "Sign in to keep your progress." }, { status: 401 })
-  const body = (await request.json().catch(() => null)) as { character?: unknown; introduced?: unknown } | null
+  const body = (await request.json().catch(() => null)) as { character?: unknown; introduced?: unknown; obedience?: unknown } | null
   const existing = await storedProgress(session.userId)
   const sentCharacter = body !== null && typeof body === "object" && "character" in body
   const character = sentCharacter ? characterOf(body?.character) : existing.character
   if (sentCharacter && !character) return NextResponse.json({ error: "That student record could not be saved." }, { status: 400 })
   const introduced = body?.introduced === true || existing.introduced
-  if (!character && !introduced) return NextResponse.json({ error: "That student record could not be saved." }, { status: 400 })
+  const obedience = body?.obedience === true || existing.obedience
+  if (!character && !introduced && !obedience) return NextResponse.json({ error: "That student record could not be saved." }, { status: 400 })
   const saved = await uploadObject(
     progressPath(session.userId),
-    Buffer.from(JSON.stringify({ character, introduced })),
+    Buffer.from(JSON.stringify({ character, introduced, obedience })),
     "application/json",
   )
   if (!saved) return NextResponse.json({ error: "Your progress could not be saved." }, { status: 503 })

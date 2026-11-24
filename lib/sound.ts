@@ -573,6 +573,34 @@ class HallSound {
     this.play([{ clip: "door-latch", at: 0, gain: 0.25, wet: 0.08, rate: 1.3 }])
   }
 
+  bell() {
+    let ctx: AudioContext
+    try {
+      ctx = this.ensure()
+    } catch {
+      return
+    }
+    void ctx.resume()
+    const master = this.master
+    if (!master) return
+    const now = ctx.currentTime
+    const notes = [784, 1174.7, 1568]
+    notes.forEach((freq, index) => {
+      const osc = ctx.createOscillator()
+      osc.type = "sine"
+      osc.frequency.value = freq
+      const gain = ctx.createGain()
+      const start = now + index * 0.07
+      gain.gain.setValueAtTime(0.0001, start)
+      gain.gain.exponentialRampToValueAtTime(index === 0 ? 0.045 : 0.028, start + 0.018)
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 1.15)
+      osc.connect(gain)
+      gain.connect(master)
+      osc.start(start)
+      osc.stop(start + 1.2)
+    })
+  }
+
   stopAll() {
     this.silence(this.playing)
     this.silence(this.writing)

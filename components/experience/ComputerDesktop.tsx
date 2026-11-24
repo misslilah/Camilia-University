@@ -23,6 +23,7 @@ import {
 import { AdminDesk } from "@/components/experience/Admin"
 import { Browser } from "@/components/experience/browser/Browser"
 import { Patreon, PatreonMark } from "@/components/experience/Patreon"
+import { Courses } from "@/components/experience/Courses"
 import { Profile } from "@/components/experience/Profile"
 import { reloadLibrary, useLibrary, usePatreonAdmin } from "@/lib/patreon"
 import { loadNotices, noticeUpdate, saveNotices, type NoticePost } from "@/lib/patreon-notices"
@@ -60,7 +61,7 @@ const INITIAL_CELLS: Record<AppId, Cell> = {
 const app = (id: AppId) => APPS.find((item) => item.id === id) ?? APPS[0]
 
 function isWorkspace(id: AppId) {
-  return id === "browser" || id === "patreon" || id === "admin" || id === "profile"
+  return id === "browser" || id === "patreon" || id === "admin" || id === "profile" || id === "courses"
 }
 
 const TASKBAR = 48
@@ -234,7 +235,7 @@ function Desktop({
       const { w, h } = size()
       const n = list.length
       if (isWorkspace(id)) {
-        const preferred = id === "browser" ? { w: 980, h: 660 } : id === "profile" ? { w: 460, h: 700 } : { w: 760, h: 620 }
+        const preferred = id === "browser" ? { w: 980, h: 660 } : id === "profile" ? { w: 460, h: 700 } : id === "courses" ? { w: 720, h: 680 } : { w: 760, h: 620 }
         const width = Math.min(preferred.w, w - 40)
         const height = Math.min(preferred.h, h - 32)
         const x = Math.max(12, (w - width) / 2 + n * 18)
@@ -645,6 +646,8 @@ function AppWindow({
             <AdminDesk />
           ) : win.app === "profile" ? (
             <Profile name={name} />
+          ) : win.app === "courses" ? (
+            <Courses name={name} />
           ) : (
             <Patreon />
           )}
