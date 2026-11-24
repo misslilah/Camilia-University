@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useFrame } from "@react-three/fiber"
 import { Text } from "@react-three/drei"
 import { BackSide, DoubleSide, Object3D, PlaneGeometry, type Group, type PointLight, type SpotLight } from "three"
@@ -22,7 +22,11 @@ import {
   smootherstep,
   type Phase,
 } from "@/lib/scene"
-import { getRoomTextures, getTextures } from "@/lib/textures"
+import { getCells, getServerCells, monitorIcons, subscribeCells } from "@/lib/desktop"
+import { missedMail } from "@/lib/mail"
+import { useLibrary } from "@/lib/patreon"
+import { loadNotices, noticeUpdate } from "@/lib/patreon-notices"
+import { getRoomTextures, repaintMonitor, getTextures } from "@/lib/textures"
 
 const HALF_W = ROOM.width / 2
 const HALF_D = ROOM.depth / 2
@@ -60,6 +64,7 @@ export function Bedroom({
   phase,
   reduced,
   character,
+  name,
   avatarYawRef,
   onWardrobe,
   onComputer,
@@ -67,6 +72,7 @@ export function Bedroom({
   phase: Phase
   reduced: boolean
   character: Character | null
+  name: string
   avatarYawRef: { current: number }
   onWardrobe: () => void
   onComputer: () => void
@@ -78,7 +84,7 @@ export function Bedroom({
         <Shell />
         <Bed />
         <Nightstand />
-        <Desk phase={phase} onOpen={onComputer} />
+        <Desk phase={phase} name={name} onOpen={onComputer} />
         <DeskChair />
         <Wardrobe phase={phase} onOpen={onWardrobe} reduced={reduced} />
         <Mirror lit={active} />
@@ -263,9 +269,33 @@ function Nightstand() {
   )
 }
 
-function Desk({ phase, onOpen }: { phase: Phase; onOpen: () => void }) {
+function Desk({ phase, name, onOpen }: { phase: Phase; name: string; onOpen: () => void }) {
   const t = useMemo(() => getRoomTextures(), [])
+  const cells = useSyncExternalStore(subscribeCells, getCells, getServerCells)
+  const library = useLibrary()
+  const [mailStamp, setMailStamp] = useState(0)
   const enabled = phase === "room"
+
+  useEffect(() => {
+    const bump = () => setMailStamp((value) => value + 1)
+    window.addEventListener("camilia-mail", bump)
+    return () => window.removeEventListener("camilia-mail", bump)
+  }, [])
+
+  useEffect(() => {
+    const who = name.trim() || "Student"
+    const posts = library.items
+      .filter((item) => !item.sample && (item.kind === "audio" || item.kind === "video"))
+      .map((item) => ({ id: item.id, kind: item.kind, name: item.name }))
+    const patreon = noticeUpdate(loadNotices(library.name?.trim() || "member"), posts, false).badge ? 1 : 0
+    repaintMonitor(
+      monitorIcons({
+        cells,
+        admin: library.admin,
+        badges: { mail: missedMail(who), patreon },
+      }),
+    )
+  }, [cells, library.admin, library.items, library.name, mailStamp, name])
   const [hover, setHover] = useState(false)
   const lit = hover && enabled
 

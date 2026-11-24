@@ -11,6 +11,20 @@ export function campusAddress(name: string) {
 
 export type MailFolder = "inbox" | "trash"
 
+export const MAIL_IDS = ["desk", "registrar", "board"] as const
+
+export function unreadCount(inboxIds: readonly string[], readIds: readonly string[]) {
+  const read = new Set(readIds)
+  return inboxIds.filter((id) => !read.has(id)).length
+}
+
+export function missedMail(name: string) {
+  if (typeof window === "undefined") return 0
+  const who = name.trim() || "Student"
+  const inbox = lettersIn(MAIL_IDS, loadTrash(who), loadGone(who), "inbox")
+  return unreadCount(inbox, loadRead(who))
+}
+
 export function lettersIn(ids: readonly string[], trashed: readonly string[], gone: readonly string[], folder: MailFolder) {
   const removed = new Set(gone)
   const bin = new Set(trashed)
@@ -45,8 +59,16 @@ export function saveGone(name: string, ids: string[]) {
   saveIds(GONE_KEY, name, ids)
 }
 
+let mailNoticeQueued = false
+
 function saveIds(key: string, name: string, ids: string[]) {
   window.localStorage.setItem(key, JSON.stringify({ name, ids }))
+  if (mailNoticeQueued) return
+  mailNoticeQueued = true
+  queueMicrotask(() => {
+    mailNoticeQueued = false
+    window.dispatchEvent(new Event("camilia-mail"))
+  })
 }
 
 function loadIds(key: string, name: string) {

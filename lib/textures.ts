@@ -1,4 +1,5 @@
 import { CanvasTexture, RepeatWrapping, SRGBColorSpace, type Texture } from "three"
+import { getCells, monitorIcons, type MonitorIcon } from "@/lib/desktop"
 
 function canvasTexture(draw: (ctx: CanvasRenderingContext2D, size: number) => void, repeatX = 1, repeatY = 1) {
   const size = 256
@@ -167,6 +168,8 @@ export type RoomTextures = {
 }
 
 let roomCache: RoomTextures | null = null
+let screenCanvas: HTMLCanvasElement | null = null
+let screenTexture: CanvasTexture | null = null
 
 function largeTexture(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void) {
   const canvas = document.createElement("canvas")
@@ -182,9 +185,32 @@ function largeTexture(width: number, height: number, draw: (ctx: CanvasRendering
   return texture
 }
 
+function monitorCanvas() {
+  const canvas = document.createElement("canvas")
+  canvas.width = 1024
+  canvas.height = 578
+  const ctx = canvas.getContext("2d")
+  if (!ctx) throw new Error("Canvas unavailable")
+  drawDesktop(ctx, monitorIcons({ cells: getCells(), admin: false }))
+  const texture = new CanvasTexture(canvas)
+  texture.colorSpace = SRGBColorSpace
+  texture.anisotropy = 8
+  texture.needsUpdate = true
+  screenCanvas = canvas
+  screenTexture = texture
+  return texture
+}
+
+export function repaintMonitor(icons: MonitorIcon[]) {
+  const ctx = screenCanvas?.getContext("2d")
+  if (!ctx || !screenTexture) return
+  drawDesktop(ctx, icons)
+  screenTexture.needsUpdate = true
+}
+
 // The monitor shows the same desktop the DOM overlay draws up close, so the
 // hand-over when the camera arrives is seamless.
-function drawDesktop(ctx: CanvasRenderingContext2D) {
+function drawDesktop(ctx: CanvasRenderingContext2D, icons: MonitorIcon[]) {
   const w = 1024
   const h = 578
   const bar = 40
@@ -239,33 +265,37 @@ function drawDesktop(ctx: CanvasRenderingContext2D) {
   ctx.font = "9px sans-serif"
   ctx.fillText("U N I V E R S I T Y", cx, cy + 48)
 
-  const icons: { a: string; b: string; col: number; row: number; letter?: string }[] = [
-    { a: "#e8b04a", b: "#c98a24", col: 0, row: 0 },
-    { a: "#7f5bd6", b: "#5435a8", col: 0, row: 1 },
-    { a: "#4c8df0", b: "#2a5fc4", col: 0, row: 2 },
-    { a: "#4ac17a", b: "#2b8d55", col: 0, row: 3 },
-    { a: "#8b93a3", b: "#5d6575", col: 0, row: 4 },
-    { a: "#ff8f6b", b: "#e25b32", col: 1, row: 0, letter: "P" },
-  ]
-  icons.forEach(({ a, b, col, row, letter }) => {
-    const x = 28 + col * 78
-    const y = 20 + row * 84
-    const tile = ctx.createLinearGradient(x, y, x + 41, y + 41)
-    tile.addColorStop(0, a)
-    tile.addColorStop(1, b)
+  icons.forEach(({ from, to, col, row, mark, name, badge }) => {
+    const x = 14 + col * 92 + 18
+    const y = 14 + row * 98 + 8
+    const tile = ctx.createLinearGradient(x, y, x + 48, y + 48)
+    tile.addColorStop(0, from)
+    tile.addColorStop(1, to)
     ctx.fillStyle = tile
     ctx.beginPath()
-    ctx.roundRect(x, y, 41, 41, 12)
+    ctx.roundRect(x, y, 48, 48, 14)
     ctx.fill()
-    if (letter) {
+    ctx.fillStyle = "#ffffff"
+    ctx.textAlign = "center"
+    ctx.textBaseline = "middle"
+    ctx.font = "700 22px sans-serif"
+    ctx.fillText(mark, x + 24, y + 25)
+    ctx.font = "12px sans-serif"
+    ctx.fillStyle = "rgba(255,255,255,0.92)"
+    ctx.shadowColor = "rgba(0,0,0,0.7)"
+    ctx.shadowBlur = 4
+    ctx.fillText(name, x + 24, y + 62)
+    ctx.shadowBlur = 0
+    if (badge > 0) {
+      const label = badge > 9 ? "9+" : String(badge)
+      ctx.fillStyle = "#e23b3b"
+      ctx.beginPath()
+      ctx.arc(x + 44, y + 2, label.length > 1 ? 11 : 9, 0, Math.PI * 2)
+      ctx.fill()
       ctx.fillStyle = "#ffffff"
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-      ctx.font = "700 22px sans-serif"
-      ctx.fillText(letter, x + 20.5, y + 22)
+      ctx.font = "700 11px sans-serif"
+      ctx.fillText(label, x + 44, y + 3)
     }
-    ctx.fillStyle = "rgba(255,255,255,0.75)"
-    ctx.fillRect(x + 4, y + 50, 33, 5)
   })
 
   ctx.fillStyle = "rgba(10,20,40,0.88)"
@@ -317,7 +347,7 @@ export function getRoomTextures(): RoomTextures {
         }
       }
     }, 4, 4),
-    screen: largeTexture(1024, 578, drawDesktop),
+    screen: monitorCanvas(),
     poster: largeTexture(256, 360, (ctx) => {
       ctx.fillStyle = "#0e1630"
       ctx.fillRect(0, 0, 256, 360)

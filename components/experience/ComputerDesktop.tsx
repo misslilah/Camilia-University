@@ -29,12 +29,14 @@ import { Profile } from "@/components/experience/Profile"
 import { reloadLibrary, useLibrary, usePatreonAdmin } from "@/lib/patreon"
 import { loadNotices, noticeUpdate, saveNotices, type NoticePost } from "@/lib/patreon-notices"
 import { Button } from "@/components/ui/button"
+import { getCells, getServerCells, saveCells, subscribeCells, type DesktopAppId } from "@/lib/desktop"
+import { missedMail } from "@/lib/mail"
 import { PANEL_BREAKPOINT } from "@/lib/scene"
 import { useScreenRect, type ScreenRect } from "@/lib/screen-rect"
 import { sound } from "@/lib/sound"
 import { cn } from "@/lib/utils"
 
-type AppId = "files" | "courses" | "browser" | "notes" | "trash" | "patreon" | "profile" | "mail" | "admin"
+type AppId = DesktopAppId
 type AppIcon = LucideIcon | ComponentType<{ className?: string; strokeWidth?: number }>
 
 const APPS: { id: AppId; name: string; icon: AppIcon; tint: string }[] = [
@@ -49,18 +51,6 @@ const APPS: { id: AppId; name: string; icon: AppIcon; tint: string }[] = [
   { id: "admin", name: "Admin", icon: Shield, tint: "from-[#c6a15a] to-[#8a6428]" },
 ]
 
-const INITIAL_CELLS: Record<AppId, Cell> = {
-  files: { col: 0, row: 0 },
-  courses: { col: 0, row: 1 },
-  browser: { col: 0, row: 2 },
-  notes: { col: 0, row: 3 },
-  trash: { col: 0, row: 4 },
-  patreon: { col: 1, row: 0 },
-  profile: { col: 1, row: 1 },
-  mail: { col: 1, row: 3 },
-  admin: { col: 1, row: 2 },
-}
-
 const app = (id: AppId) => APPS.find((item) => item.id === id) ?? APPS[0]
 
 function isWorkspace(id: AppId) {
@@ -71,7 +61,6 @@ const TASKBAR = 48
 const CELL = { w: 92, h: 98, pad: 14 }
 const DOUBLE_TAP_MS = 400
 
-type Cell = { col: number; row: number }
 type Win = { app: AppId; x: number; y: number; w: number; h: number; z: number; minimized: boolean; maximized: boolean }
 
 const narrowQuery = `(max-width: ${PANEL_BREAKPOINT - 1}px)`
@@ -187,7 +176,7 @@ function Desktop({
   name: string
 }) {
   const area = useRef<HTMLDivElement>(null)
-  const [cells, setCells] = useState<Record<AppId, Cell>>(INITIAL_CELLS)
+  const cells = useSyncExternalStore(subscribeCells, getCells, getServerCells)
   const [selected, setSelected] = useState<AppId | null>(null)
   const [windows, setWindows] = useState<Win[]>([])
   const [menu, setMenu] = useState(false)
@@ -200,9 +189,11 @@ function Desktop({
   const library = useLibrary()
   const apps = library.admin ? APPS : APPS.filter((item) => item.id !== "admin")
   const [badge, setBadge] = useState(false)
+  const [mailUnread, setMailUnread] = useState(() => missedMail(name))
   const [toasts, setToasts] = useState<NoticePost[]>([])
   const noticed = useRef<{ who: string; memory: ReturnType<typeof loadNotices> } | null>(null)
   const patreonOpen = windows.some((win) => win.app === "patreon" && !win.minimized)
+  const mailWindow = windows.some((win) => win.app === "mail")
 
   useEffect(() => {
     if (library.admin) return
@@ -254,6 +245,21 @@ function Desktop({
 
   const minimize = (id: AppId) => setWindows((list) => list.map((win) => (win.app === id ? { ...win, minimized: true } : win)))
   const close = (id: AppId) => setWindows((list) => list.filter((win) => win.app !== id))
+
+  useEffect(() => {
+    const refresh = () => setMailUnread(missedMail(name))
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== null && !event.key.startsWith("camilia-mail")) return
+      refresh()
+    }
+    refresh()
+    window.addEventListener("camilia-mail", refresh)
+    window.addEventListener("storage", onStorage)
+    return () => {
+      window.removeEventListener("camilia-mail", refresh)
+      window.removeEventListener("storage", onStorage)
+    }
+  }, [mailWindow, name])
 
   useEffect(() => {
     if (!active) return
@@ -324,13 +330,11 @@ function Desktop({
       const rows = Math.max(1, Math.floor((h - CELL.pad) / CELL.h))
       const col = Math.max(0, Math.min(cols - 1, Math.round((drag.x - CELL.pad) / CELL.w)))
       const row = Math.max(0, Math.min(rows - 1, Math.round((drag.y - CELL.pad) / CELL.h)))
-      setCells((current) => {
-        const from = current[id]
-        const next = { ...current, [id]: { col, row } }
-        const other = apps.find((item) => item.id !== id && current[item.id].col === col && current[item.id].row === row)
-        if (other) next[other.id] = from
-        return next
-      })
+      const from = cells[id]
+      const next = { ...cells, [id]: { col, row } }
+      const other = apps.find((item) => item.id !== id && cells[item.id].col === col && cells[item.id].row === row)
+      if (other) next[other.id] = from
+      saveCells(next)
       setDrag(null)
       setSelected(id)
       return
@@ -372,7 +376,13 @@ function Desktop({
             <button
               key={item.id}
               type="button"
-              aria-label={item.id === "patreon" && badge ? "Patreon, 1 new" : item.name}
+              aria-label={
+                item.id === "patreon" && badge
+                  ? "Patreon, 1 new"
+                  : item.id === "mail" && mailUnread > 0
+                    ? `Mail, ${mailUnread} new`
+                    : item.name
+              }
               aria-pressed={selected === item.id}
               onPointerDown={(event) => iconDown(item.id, event)}
               onPointerMove={iconMove}
@@ -410,9 +420,9 @@ function Desktop({
                 >
                   <Icon className="h-6 w-6 text-white" strokeWidth={1.8} />
                 </span>
-                {item.id === "patreon" && badge && (
+                {((item.id === "patreon" && badge) || (item.id === "mail" && mailUnread > 0)) && (
                   <span className="absolute -top-1.5 -right-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[#e23b3b] px-1 text-[11px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(0,0,0,0.45)]">
-                    1
+                    {item.id === "mail" ? mailUnread : 1}
                   </span>
                 )}
               </span>
@@ -436,7 +446,7 @@ function Desktop({
           />
         ))}
 
-        {menuOpen && <StartMenu apps={apps} onOpen={openApp} onLeave={onLeave} guided={guided} />}
+        {menuOpen && <StartMenu apps={apps} mailUnread={mailUnread} onOpen={openApp} onLeave={onLeave} guided={guided} />}
         {toasts.length > 0 && (
           <div className="pointer-events-none absolute right-3 bottom-3 z-40 flex w-[min(280px,calc(100%-24px))] flex-col gap-2">
             {toasts.map((toast) => (
@@ -704,11 +714,13 @@ function AppWindow({
 
 function StartMenu({
   apps,
+  mailUnread,
   onOpen,
   onLeave,
   guided,
 }: {
   apps: { id: AppId; name: string; icon: AppIcon; tint: string }[]
+  mailUnread: number
   onOpen: (id: AppId) => void
   onLeave: () => void
   guided: boolean
@@ -741,7 +753,12 @@ function StartMenu({
               <span className={cn("grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br", item.tint)}>
                 <Icon className="h-4 w-4 text-white" />
               </span>
-              {item.name}
+              <span className="min-w-0 flex-1 truncate">{item.name}</span>
+              {item.id === "mail" && mailUnread > 0 && (
+                <span className="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[#e23b3b] px-1 text-[11px] font-semibold leading-none text-white">
+                  {mailUnread}
+                </span>
+              )}
             </button>
           )
         })}

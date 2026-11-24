@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import { ArrowLeft, Trash2, Undo2 } from "lucide-react"
-import { campusAddress, lettersIn, loadGone, loadRead, loadTrash, saveGone, saveRead, saveTrash, type MailFolder } from "@/lib/mail"
+import { campusAddress, lettersIn, loadGone, loadRead, loadTrash, MAIL_IDS, saveGone, saveRead, saveTrash, type MailFolder } from "@/lib/mail"
 import { cn } from "@/lib/utils"
 
 type Letter = {
@@ -54,8 +54,6 @@ const LETTERS: Letter[] = [
   },
 ]
 
-const IDS = LETTERS.map((letter) => letter.id)
-
 export function Mail({ name }: { name: string }) {
   const pseudo = name.trim() || "Student"
   const address = campusAddress(pseudo)
@@ -73,7 +71,7 @@ export function Mail({ name }: { name: string }) {
     setOpenId(null)
   }, [pseudo])
 
-  const shown = lettersIn(IDS, trashed, gone, folder)
+  const shown = lettersIn(MAIL_IDS, trashed, gone, folder)
     .map((id) => LETTERS.find((letter) => letter.id === id))
     .filter((letter): letter is Letter => Boolean(letter))
   const open = shown.find((letter) => letter.id === openId) ?? null

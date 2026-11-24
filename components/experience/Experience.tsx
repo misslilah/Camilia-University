@@ -547,6 +547,7 @@ export default function Experience() {
           phase={phase}
           reduced={reduced}
           character={character}
+          name={student?.name ?? ""}
           avatarYawRef={avatarYawRef}
           onWardrobe={openWardrobe}
           onComputer={() => {
