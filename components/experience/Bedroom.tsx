@@ -25,7 +25,7 @@ import {
 } from "@/lib/scene"
 import { getCells, getServerCells, monitorIcons, subscribeCells } from "@/lib/desktop"
 import { missedMail } from "@/lib/mail"
-import { cupboardMarks, cupboardReveal, loadBottle, saveBottle, type BottlePlace } from "@/lib/nightstand"
+import { cupboardMarks, cupboardReveal, loadBottle, saveBottle, subscribeBottle, type BottlePlace } from "@/lib/nightstand"
 import { CupboardGoods, DeskBottle, useBottleArt } from "@/components/experience/PoppersBottle"
 import { loadObedience } from "@/lib/obedience"
 import { useLibrary } from "@/lib/patreon"
@@ -84,16 +84,14 @@ function useCourseGift(name: string) {
 }
 
 function useBottlePlace(name: string) {
-  const [place, setPlace] = useState<BottlePlace>(() => loadBottle(name))
-  useEffect(() => {
-    setPlace(loadBottle(name))
-  }, [name])
+  const place = useSyncExternalStore(
+    subscribeBottle,
+    () => loadBottle(name),
+    () => "drawer" as const,
+  )
   const toggle = useCallback(() => {
-    setPlace((current) => {
-      const next: BottlePlace = current === "desk" ? "drawer" : "desk"
-      saveBottle(name, next)
-      return next
-    })
+    const next: BottlePlace = loadBottle(name) === "desk" ? "drawer" : "desk"
+    saveBottle(name, next)
   }, [name])
   return [place, toggle] as const
 }

@@ -405,7 +405,7 @@
 }
 
 html[data-vision-blur] [data-experience] {
-  filter: blur(2.75px);
+  filter: blur(1.25px);
 }
 
 html[data-vision-sway] [data-experience] {
@@ -419,7 +419,7 @@ html[data-vision-sway] [data-experience] {
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  background: rgba(214, 92, 132, 0.16);
+  background: rgba(214, 92, 132, 0.07);
   transform-origin: 50% 46%;
   animation: vision-arrive 700ms ease both;
 }
@@ -429,9 +429,9 @@ html[data-vision-sway] [data-experience] {
   position: absolute;
   inset: -14%;
   background:
-    radial-gradient(ellipse at 32% 28%, rgba(255, 186, 204, 0.32), transparent 54%),
-    radial-gradient(ellipse at 74% 70%, rgba(196, 72, 118, 0.27), transparent 50%),
-    linear-gradient(120deg, rgba(232, 140, 168, 0.11), rgba(176, 96, 186, 0.08) 52%, rgba(230, 168, 148, 0.1));
+    radial-gradient(ellipse at 32% 28%, rgba(255, 186, 204, 0.14), transparent 54%),
+    radial-gradient(ellipse at 74% 70%, rgba(196, 72, 118, 0.11), transparent 50%),
+    linear-gradient(120deg, rgba(232, 140, 168, 0.05), rgba(176, 96, 186, 0.035) 52%, rgba(230, 168, 148, 0.045));
 }
 
 html[data-vision-sway] .vision-wash {
@@ -495,7 +495,7 @@ html[data-vision-sway] .vision-wash {
   }
 
   html[data-vision-blur] [data-experience] {
-    filter: blur(1px);
+    filter: blur(0.4px);
   }
 
   html[data-vision-sway] [data-experience],
@@ -507,11 +507,16 @@ html[data-vision-sway] .vision-wash {
   .vision-wash {
     animation: none;
     opacity: 1;
+    background: rgba(214, 92, 132, 0.04);
   }
 
   .vision-wash::before {
     animation: none;
     transform: none;
+    background:
+      radial-gradient(ellipse at 32% 28%, rgba(255, 186, 204, 0.07), transparent 54%),
+      radial-gradient(ellipse at 74% 70%, rgba(196, 72, 118, 0.05), transparent 50%),
+      linear-gradient(120deg, rgba(232, 140, 168, 0.025), rgba(176, 96, 186, 0.02) 52%, rgba(230, 168, 148, 0.025));
   }
 
   .vision-pulse {

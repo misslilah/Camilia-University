@@ -73,7 +73,7 @@ export function DesktopCourses({ name }: { name: string }) {
   }
 
   if (courseEditorOpen(admin, view)) return <CourseEditor onBack={() => setView("list")} />
-  if (view === "train") return <ObedienceTraining onBack={() => setView("list")} />
+  if (view === "train") return <ObedienceTraining name={name} onBack={() => setView("list")} />
 
   return (
     <div data-obedience-training="ready" className="h-full overflow-auto bg-[#f6f1e6] px-5 py-5 text-[#2a1c14] sm:px-8">

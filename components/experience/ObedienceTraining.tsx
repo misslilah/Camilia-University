@@ -5,6 +5,7 @@ import { createPortal } from "react-dom"
 import { CourseChrome, CourseStatus, courseButton } from "@/components/experience/course-chrome"
 import { usePlayableCourse } from "@/components/experience/use-playable-course"
 import type { PlayableCourse } from "@/lib/course-client"
+import { loadBottle, subscribeBottle } from "@/lib/nightstand"
 import { handTyped, letterMarks, lineReady } from "@/lib/obedience"
 import { floatingPraise, praiseClip, sniffBeats, sniffProgress, type SniffPhase } from "@/lib/obedience-course"
 import { sound } from "@/lib/sound"
@@ -27,7 +28,20 @@ function secondsLabel(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
 
-export function ObedienceTraining({ onBack }: { onBack: () => void }) {
+function bottleStudent(name: string) {
+  return name.trim() || "Student"
+}
+
+function useBottleOnDesk(name: string) {
+  const who = bottleStudent(name)
+  return useSyncExternalStore(
+    subscribeBottle,
+    () => loadBottle(who) === "desk",
+    () => false,
+  )
+}
+
+export function ObedienceTraining({ name, onBack }: { name: string; onBack: () => void }) {
   const lesson = usePlayableCourse()
   if (lesson.state.status === "loading") {
     return (
@@ -58,11 +72,12 @@ export function ObedienceTraining({ onBack }: { onBack: () => void }) {
       </div>
     )
   }
-  return <Session playable={lesson.state.playable} onBack={onBack} />
+  return <Session name={name} playable={lesson.state.playable} onBack={onBack} />
 }
 
-function Session({ playable, onBack }: { playable: PlayableCourse; onBack: () => void }) {
+function Session({ name, playable, onBack }: { name: string; playable: PlayableCourse; onBack: () => void }) {
   const reduced = useReducedMotion()
+  const onDesk = useBottleOnDesk(name)
   const [started, setStarted] = useState(false)
   const [phase, setPhase] = useState<SniffPhase | null>(null)
   const [progress, setProgress] = useState(0)
@@ -113,7 +128,7 @@ function Session({ playable, onBack }: { playable: PlayableCourse; onBack: () =>
   if (!started) {
     return (
       <CourseChrome title="Obedience Training" onBack={onBack}>
-        <div className="grid h-full place-items-center px-6 py-8 text-center">
+        <div className="grid h-full place-items-center px-6 py-8 text-center" data-obedience-training={onDesk ? "begin" : "needs-poppers"}>
           <div>
             <p className="text-[10px] tracking-[0.32em] text-[#8a6238] uppercase">Course</p>
             <h2 className="mt-2 font-serif text-4xl">Obedience Training</h2>
@@ -122,9 +137,22 @@ function Session({ playable, onBack }: { playable: PlayableCourse; onBack: () =>
               {course.lines.length} {course.lines.length === 1 ? "line" : "lines"}
             </p>
             {playable.note && <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-[#8a6238]">{playable.note}</p>}
-            <button type="button" className={`${courseButton()} mt-6`} onClick={() => setStarted(true)}>
-              Begin
-            </button>
+            {onDesk ? (
+              <button
+                type="button"
+                className={`${courseButton()} mt-6`}
+                onClick={() => {
+                  if (loadBottle(bottleStudent(name)) !== "desk") return
+                  setStarted(true)
+                }}
+              >
+                Begin
+              </button>
+            ) : (
+              <p role="status" className="mx-auto mt-6 max-w-sm font-serif text-2xl leading-snug text-[#6d2c3a]">
+                Prepare your poppers. Take them out of the nightstand.
+              </p>
+            )}
           </div>
         </div>
       </CourseChrome>

@@ -39,7 +39,13 @@ export function bottlePlace(stored: string | null, name: string): BottlePlace {
   }
 }
 
+// This visit's placement. The bedroom and the course both read it, so the
+// desk check cannot drift from the bottle the student actually moved.
+let remembered: { name: string; place: BottlePlace } | null = null
+const listeners = new Set<() => void>()
+
 export function loadBottle(name: string): BottlePlace {
+  if (remembered?.name === name) return remembered.place
   try {
     return bottlePlace(window.localStorage.getItem(KEY), name)
   } catch {
@@ -48,9 +54,25 @@ export function loadBottle(name: string): BottlePlace {
 }
 
 export function saveBottle(name: string, place: BottlePlace) {
+  remembered = { name, place }
   try {
     window.localStorage.setItem(KEY, JSON.stringify({ name, place }))
   } catch {
     // The room still keeps this visit's placement when storage is blocked.
+  }
+  for (const listener of listeners) listener()
+}
+
+export function subscribeBottle(listener: () => void) {
+  listeners.add(listener)
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== null && event.key !== KEY) return
+    remembered = null
+    listener()
+  }
+  if (typeof window !== "undefined") window.addEventListener("storage", onStorage)
+  return () => {
+    listeners.delete(listener)
+    if (typeof window !== "undefined") window.removeEventListener("storage", onStorage)
   }
 }
