@@ -722,6 +722,14 @@ async function currentSession(request: NextRequest, forceRefresh: boolean) {
   }
 }
 
+export async function creatorGate(request: NextRequest): Promise<"ok" | "forbidden" | "unavailable"> {
+  if (crossSite(request)) return "forbidden"
+  const loaded = await currentSession(request, false)
+  if (loaded.kind === "unconfigured" || loaded.kind === "database") return "unavailable"
+  if (loaded.kind !== "session" || !loaded.session.isAdmin) return "forbidden"
+  return "ok"
+}
+
 function visibleItems(session: StoredSession, rows: MediaRow[]): LibraryItem[] {
   const active = session.patronStatus === "active_patron"
   if (!session.isAdmin && !active) return []

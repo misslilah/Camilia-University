@@ -22,6 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { AdminDesk } from "@/components/experience/Admin"
+import { DesktopCourses } from "@/components/experience/DesktopCourses"
 import { Browser } from "@/components/experience/browser/Browser"
 import { Patreon, PatreonMark } from "@/components/experience/Patreon"
 import { Mail as Mailbox } from "@/components/experience/Mail"
@@ -54,7 +55,7 @@ const APPS: { id: AppId; name: string; icon: AppIcon; tint: string }[] = [
 const app = (id: AppId) => APPS.find((item) => item.id === id) ?? APPS[0]
 
 function isWorkspace(id: AppId) {
-  return id === "browser" || id === "patreon" || id === "admin" || id === "profile" || id === "mail"
+  return id === "browser" || id === "patreon" || id === "admin" || id === "profile" || id === "mail" || id === "courses"
 }
 
 const TASKBAR = 48
@@ -229,7 +230,7 @@ function Desktop({
       const { w, h } = size()
       const n = list.length
       if (isWorkspace(id)) {
-        const preferred = id === "browser" ? { w: 980, h: 660 } : id === "profile" ? { w: 460, h: 700 } : id === "mail" ? { w: 860, h: 560 } : { w: 760, h: 620 }
+        const preferred = id === "browser" ? { w: 980, h: 660 } : id === "profile" ? { w: 460, h: 700 } : id === "mail" ? { w: 860, h: 560 } : id === "courses" ? { w: 920, h: 680 } : { w: 760, h: 620 }
         const width = Math.min(preferred.w, w - 40)
         const height = Math.min(preferred.h, h - 32)
         const x = Math.max(12, (w - width) / 2 + n * 18)
@@ -661,6 +662,8 @@ function AppWindow({
             <Profile name={name} />
           ) : win.app === "mail" ? (
             <Mailbox name={name} />
+          ) : win.app === "courses" ? (
+            <DesktopCourses name={name} />
           ) : (
             <Patreon />
           )}
