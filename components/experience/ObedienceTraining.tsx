@@ -158,24 +158,25 @@ function Cinema({
       <div className="sniff-stage absolute inset-0" data-phase={phase} data-reduced={reduced ? "true" : "false"} data-sniff-seconds={label}>
         <div className="sniff-desk" />
         <div className="sniff-rig">
-          <div className="sniff-bottle">
-            <div className="sniff-neck" />
-            <div className="sniff-cap" />
+          <div className="sniff-bottle" aria-hidden>
             <div className="sniff-body">
               <span className="sniff-label">
+                <span className="sniff-point" />
                 <b>IRON</b>
                 <b>FIST</b>
+                <span className="sniff-rule" />
                 <small>LEATHER CLEANER</small>
+                <em className="sniff-mix">
+                  AMYL NITRITE
+                  <br />
+                  MIXTURE
+                </em>
+                <span className="sniff-volume">30 ml – 1 fl oz</span>
               </span>
             </div>
-          </div>
-          <div className="sniff-hand" aria-hidden>
-            <span className="sniff-finger sniff-finger-a" />
-            <span className="sniff-finger sniff-finger-b" />
-            <span className="sniff-finger sniff-finger-c" />
-            <span className="sniff-finger sniff-finger-d" />
-            <span className="sniff-palm" />
-            <span className="sniff-thumb" />
+            <div className="sniff-neck" />
+            <div className="sniff-mouth" />
+            <div className="sniff-cap" />
           </div>
         </div>
         {phase === "sniff" && (
