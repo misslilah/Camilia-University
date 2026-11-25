@@ -125,53 +125,59 @@
 .sniff-body {
   position: absolute;
   z-index: 0;
-  top: 68px;
+  top: 64px;
   left: 8px;
   width: 88px;
-  height: 172px;
+  height: 176px;
   background: linear-gradient(
     90deg,
-    #f4f2ee 0%,
-    #b7b4ae 7%,
-    #eceae6 16%,
-    #f7f6f4 28%,
-    #d4d1cb 46%,
-    #b9b6b0 62%,
-    #8f8c86 78%,
-    #c8c5bf 92%,
-    #f3f1ed 100%
+    #f6f4f0 0%,
+    #c4c1ba 8%,
+    #f3f1ed 18%,
+    #f8f7f5 32%,
+    #d8d5cf 48%,
+    #b7b4ae 64%,
+    #8e8b85 80%,
+    #c9c6c0 92%,
+    #f2f0ec 100%
   );
-  clip-path: path("M16,8 C16,2 72,2 72,8 C78,16 84,24 86,36 L86,144 C86,162 70,170 44,170 C18,170 2,162 2,144 L2,36 C4,24 10,16 16,8 Z");
+  clip-path: path("M14,1 L74,1 C82,3 86,8 86,14 L86,152 C86,168 72,174 44,174 C16,174 2,168 2,152 L2,14 C2,8 6,3 14,1 Z");
 }
 
 .sniff-body::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.07) 0 1px, rgba(40, 38, 34, 0.04) 1px 2px);
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 3px,
+    rgba(255, 255, 255, 0.05) 3px 4px,
+    transparent 4px 7px
+  );
   clip-path: inherit;
+  mix-blend-mode: soft-light;
 }
 
 .sniff-neck {
   position: absolute;
   z-index: 1;
-  top: 56px;
-  left: 24px;
-  width: 56px;
-  height: 14px;
+  top: 50px;
+  left: 22px;
+  width: 60px;
+  height: 18px;
   border-radius: 2px 2px 1px 1px;
   background:
-    linear-gradient(#8a877f, #8a877f) 0 4px / 100% 1px no-repeat,
+    linear-gradient(#7c796f, #7c796f) 0 6px / 100% 1px no-repeat,
     linear-gradient(90deg, #f7f5f1 0%, #9c998f 18%, #d9d6d0 42%, #8d8a84 68%, #cfcbc4 86%, #f4f2ee 100%);
 }
 
 .sniff-mouth {
   position: absolute;
   z-index: 2;
-  top: 57px;
+  top: 52px;
   left: 32px;
   width: 40px;
-  height: 9px;
+  height: 10px;
   border-radius: 50%;
   background: radial-gradient(ellipse at 50% 40%, #2c2926 0%, #0c0b0a 72%);
   box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.85);
@@ -181,23 +187,24 @@
   position: absolute;
   z-index: 3;
   top: 0;
-  left: 10px;
-  width: 84px;
-  height: 62px;
-  border-radius: 4px 4px 2px 2px;
-  background: repeating-linear-gradient(90deg, #101010 0 2px, #3a3a3a 2px 3px, #141414 3px 5px);
+  left: 6px;
+  width: 92px;
+  height: 58px;
+  border-radius: 5px 5px 2px 2px;
+  background: repeating-linear-gradient(90deg, #0e0e0e 0 2px, #5a5a5a 2px 3px, #161616 3px 4px);
   box-shadow:
-    inset 0 7px 0 #1a1a1a,
-    inset 0 8px 0 #0a0a0a,
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -6px 0 #050505;
-  transform-origin: 50% 78%;
+    inset 0 4px 0 #2c2c2c,
+    inset 0 5px 0 #121212,
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -5px 0 #050505,
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  transform-origin: 50% 86%;
 }
 
 .sniff-label {
   position: absolute;
   z-index: 1;
-  top: 18%;
+  top: 12%;
   left: 50%;
   display: flex;
   width: 76px;
@@ -345,18 +352,18 @@
     background-position: 16px 0;
   }
   100% {
-    transform: translateY(-76px) rotate(-5deg);
+    transform: translateY(-92px) rotate(-5deg);
     background-position: 28px 0;
   }
 }
 
 @keyframes sniff-cap-away {
   from {
-    transform: translateY(-76px) rotate(-5deg);
+    transform: translateY(-92px) rotate(-5deg);
     opacity: 1;
   }
   to {
-    transform: translateY(-112px) rotate(-8deg);
+    transform: translateY(-128px) rotate(-8deg);
     opacity: 0;
   }
 }
