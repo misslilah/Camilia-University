@@ -56,11 +56,19 @@ export type PraiseClip = {
   name: string
 }
 
+export type CourseTrack = {
+  id: string
+  name: string
+}
+
 export type ObedienceCourse = {
   sniffSeconds: number
   lines: CourseLine[]
   praise: PraiseClip[]
+  track: CourseTrack | null
 }
+
+export type CourseDeskView = "list" | "train" | "edit"
 
 const DEFAULT_LINES: CourseLine[] = [
   { id: "line-listen", text: "I listen, and I obey.", audioId: null, audioName: null },
@@ -73,7 +81,16 @@ export function defaultCourse(): ObedienceCourse {
     sniffSeconds: DEFAULT_SNIFF_SECONDS,
     lines: DEFAULT_LINES.map((line) => ({ ...line })),
     praise: [],
+    track: null,
   }
+}
+
+export function courseEditorControl(admin: boolean) {
+  return admin === true
+}
+
+export function courseEditorOpen(admin: boolean, view: CourseDeskView) {
+  return courseEditorControl(admin) && view === "edit"
 }
 
 export function obedienceTrainingOffered(done: boolean) {
@@ -143,6 +160,7 @@ export function courseAudioIds(course: ObedienceCourse) {
     seen.add(clip.id)
     ids.push(clip.id)
   }
+  if (course.track && !seen.has(course.track.id)) ids.push(course.track.id)
   return ids
 }
 
@@ -198,5 +216,14 @@ export function parseCourse(value: unknown): ObedienceCourse | null {
       praise.push({ id, name: cleanName(clip.name) || "Praise" })
     }
   }
-  return { sniffSeconds, lines, praise }
+  const track = courseTrack(row.track)
+  return { sniffSeconds, lines, praise, track }
+}
+
+function courseTrack(value: unknown): CourseTrack | null {
+  if (!value || typeof value !== "object") return null
+  const row = value as Record<string, unknown>
+  const id = typeof row.id === "string" && AUDIO_ID.test(row.id) ? row.id : ""
+  if (!id) return null
+  return { id, name: cleanName(row.name) || "Course audio" }
 }

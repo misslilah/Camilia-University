@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react"
 import { CourseChrome, CourseStatus, courseButton } from "@/components/experience/course-chrome"
 import { usePlayableCourse } from "@/components/experience/use-playable-course"
 import { LOCAL_CLIP_NOTE, revokeAudio, uploadCourseAudio, saveCourseConfig } from "@/lib/course-client"
-import { SNIFF_MAX, SNIFF_MIN, clampSniff, type CourseLine, type ObedienceCourse, type PraiseClip } from "@/lib/obedience-course"
+import { SNIFF_MAX, SNIFF_MIN, clampSniff, courseEditorControl, type CourseLine, type ObedienceCourse, type PraiseClip } from "@/lib/obedience-course"
+import { usePatreonAdmin } from "@/lib/patreon"
 
 export function CourseEditor({ onBack }: { onBack: () => void }) {
+  const admin = usePatreonAdmin()
   const lesson = usePlayableCourse()
   const [draft, setDraft] = useState<ObedienceCourse | null>(null)
   const [sniff, setSniff] = useState("4")
@@ -27,6 +29,14 @@ export function CourseEditor({ onBack }: { onBack: () => void }) {
     setAudio(playable.audio)
     if (playable.note) setBanner({ tone: "warn", text: playable.note })
   }, [lesson.state])
+
+  if (!courseEditorControl(admin)) {
+    return (
+      <div data-course-editor="closed" className="h-full">
+        <CourseStatus title="This page is closed." />
+      </div>
+    )
+  }
 
   if (lesson.state.status === "loading" || (lesson.state.status === "ready" && !draft)) {
     return (
@@ -76,7 +86,7 @@ export function CourseEditor({ onBack }: { onBack: () => void }) {
   }
 
   async function chooseLineAudio(line: CourseLine, file: File | undefined) {
-    if (!file) return
+    if (!file || !courseEditorControl(admin)) return
     setBusy(line.id)
     setBanner(null)
     const result = await uploadCourseAudio(file)
@@ -94,7 +104,7 @@ export function CourseEditor({ onBack }: { onBack: () => void }) {
   }
 
   async function choosePraise(file: File | undefined) {
-    if (!file || !draft) return
+    if (!file || !draft || !courseEditorControl(admin)) return
     if (draft.praise.length >= 12) {
       setBanner({ tone: "error", text: "Twelve praise clips is the limit." })
       return
@@ -114,8 +124,24 @@ export function CourseEditor({ onBack }: { onBack: () => void }) {
     if (result.local) setBanner({ tone: "warn", text: LOCAL_CLIP_NOTE })
   }
 
+  async function chooseTrack(file: File | undefined) {
+    if (!file || !draft || !courseEditorControl(admin)) return
+    setBusy("track")
+    setBanner(null)
+    const result = await uploadCourseAudio(file)
+    setBusy(null)
+    if (!result.ok) {
+      setBanner({ tone: "error", text: result.error })
+      return
+    }
+    extra.current[result.id] = result.url
+    setAudio((current) => ({ ...current, [result.id]: result.url }))
+    setDraft((current) => (current ? { ...current, track: { id: result.id, name: result.name } } : current))
+    if (result.local) setBanner({ tone: "warn", text: LOCAL_CLIP_NOTE })
+  }
+
   async function save() {
-    if (!draft || busy) return
+    if (!draft || busy || !courseEditorControl(admin)) return
     const seconds = Number(sniff)
     if (!Number.isFinite(seconds) || seconds < SNIFF_MIN || seconds > SNIFF_MAX) {
       setBanner({ tone: "error", text: "Sniff time must be between 1 and 180 seconds." })
@@ -171,6 +197,56 @@ export function CourseEditor({ onBack }: { onBack: () => void }) {
             className="mt-2 h-11 w-full rounded-2xl border border-[#e7d3b0] bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#c6a15a] sm:w-36"
           />
         </label>
+        <section className="flex flex-col gap-3" data-course-track="">
+          <div>
+            <h3 className="font-serif text-2xl">Audio for the whole course</h3>
+            <p className="mt-1 text-sm leading-relaxed text-[#4a3424]">
+              One track plays the whole time the student is writing, from the moment that page opens until the course is closed or finished. It is separate from the audio on each line and from the praise clips.
+            </p>
+          </div>
+          {draft.track ? (
+            <div className="flex flex-col gap-2 rounded-3xl border border-[#e7d3b0] bg-white p-3 sm:flex-row sm:items-center">
+              <p className="min-w-0 flex-1 truncate text-sm">{draft.track.name}</p>
+              {audio[draft.track.id] && (
+                <button
+                  type="button"
+                  className="h-10 text-left text-sm text-[#8a6238] underline underline-offset-2"
+                  onClick={() => {
+                    const player = new Audio(audio[draft.track?.id ?? ""])
+                    void player.play().catch(() => setBanner({ tone: "error", text: "That clip could not be played." }))
+                  }}
+                >
+                  Play
+                </button>
+              )}
+              <button
+                type="button"
+                aria-label="Remove the whole-course audio"
+                className="h-10 text-left text-sm text-[#8a6238] underline underline-offset-2"
+                onClick={() => setDraft({ ...draft, track: null })}
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-[#8a6238]">No whole-course audio yet. The lesson stays quiet between lines.</p>
+          )}
+          <label className="inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-full border border-[#e7d3b0] bg-white px-4 text-sm sm:w-fit">
+            {busy === "track" ? "Saving the clip…" : draft.track ? "Replace the whole-course audio" : "Add audio for the whole course"}
+            <input
+              type="file"
+              accept="audio/*"
+              className="sr-only"
+              aria-label="Audio for the whole course"
+              disabled={busy !== null}
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                event.target.value = ""
+                void chooseTrack(file)
+              }}
+            />
+          </label>
+        </section>
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
             <h3 className="font-serif text-2xl">Lines to type</h3>

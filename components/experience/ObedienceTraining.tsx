@@ -227,8 +227,21 @@ function WriterScreen({ playable, dizzy, onBack }: { playable: PlayableCourse; d
     const url = playable.audio[clip.id]
     return url ? [url] : []
   })
+  const trackUrl = course.track ? playable.audio[course.track.id] ?? null : null
 
   useEffect(() => () => window.clearTimeout(holdTimer.current), [])
+
+  useEffect(() => {
+    if (finished || !trackUrl) return
+    const bed = new Audio(trackUrl)
+    bed.loop = true
+    bed.volume = 0.5
+    void bed.play().catch(() => {})
+    return () => {
+      bed.pause()
+      bed.src = ""
+    }
+  }, [finished, trackUrl])
 
   function accept() {
     sound.bell()
@@ -300,12 +313,17 @@ function WriterScreen({ playable, dizzy, onBack }: { playable: PlayableCourse; d
 }
 
 function VisionWash({ pulse }: { pulse: number }) {
+  const reduced = useReducedMotion()
   useEffect(() => {
-    document.documentElement.dataset.visionBlur = "on"
+    const root = document.documentElement
+    root.dataset.visionBlur = "on"
+    if (reduced) delete root.dataset.visionSway
+    else root.dataset.visionSway = "on"
     return () => {
-      delete document.documentElement.dataset.visionBlur
+      delete root.dataset.visionBlur
+      delete root.dataset.visionSway
     }
-  }, [])
+  }, [reduced])
   if (typeof document === "undefined") return null
   return createPortal(
     <div className="vision-wash" data-obedience-vision="" aria-hidden>

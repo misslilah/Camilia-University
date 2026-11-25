@@ -7,6 +7,8 @@ import {
   clampSniff,
   courseAudioIds,
   courseAudioMime,
+  courseEditorControl,
+  courseEditorOpen,
   defaultCourse,
   floatingPraise,
   obedienceTrainingOffered,
@@ -28,6 +30,7 @@ test("the built-in lesson is playable before any upload", () => {
   )
   assert.equal(course.lines.every((line) => line.audioId === null), true)
   assert.deepEqual(course.praise, [])
+  assert.equal(course.track, null)
   assert.deepEqual(parseCourse(JSON.parse(JSON.stringify(course))), course)
 })
 
@@ -63,6 +66,7 @@ test("a saved course keeps the sniff time and drops anything that is not the les
   assert.equal(parsed?.lines[0]?.audioName, "hello.mp3")
   assert.equal(parsed?.lines[1]?.audioId, null)
   assert.deepEqual(parsed?.praise, [{ id: audioId, name: "You're doing soooo good" }])
+  assert.equal(parsed?.track, null)
   assert.equal(parseCourse({ sniffSeconds: 4, lines: [] }), null)
   assert.equal(parseCourse(null), null)
   assert.equal(clampSniff(0), 1)
@@ -107,4 +111,39 @@ test("dictation audio is a real audio file and the writing box still refuses a p
   assert.deepEqual(courseAudioIds(course), ["22222222-2222-4222-8222-222222222222"])
   assert.equal(handTyped("", course.lines[1].text), "")
   assert.equal(handTyped("I", "It"), "It")
+})
+
+test("one track can ride along for the whole course", () => {
+  const trackId = "33333333-3333-4333-8333-333333333333"
+  const lineId = "22222222-2222-4222-8222-222222222222"
+  const parsed = parseCourse({
+    sniffSeconds: 4,
+    lines: [{ id: "line-a", text: "I listen.", audioId: lineId, audioName: "line.mp3" }],
+    track: { id: trackId, name: "  whole course.mp3  " },
+  })
+  assert.deepEqual(parsed?.track, { id: trackId, name: "whole course.mp3" })
+  assert.deepEqual(parsed ? courseAudioIds(parsed) : [], [lineId, trackId])
+  const dropped = parseCourse({
+    sniffSeconds: 4,
+    lines: [{ id: "line-a", text: "I listen.", audioId: null }],
+    track: { id: "not-a-uuid", name: "nope" },
+  })
+  assert.equal(dropped?.track, null)
+  const shared = parseCourse({
+    sniffSeconds: 4,
+    lines: [{ id: "line-a", text: "I listen.", audioId: trackId, audioName: "same.mp3" }],
+    track: { id: trackId, name: "same.mp3" },
+  })
+  assert.deepEqual(shared ? courseAudioIds(shared) : [], [trackId])
+})
+
+test("edit course stays with the creator", () => {
+  for (const view of ["list", "train", "edit"] as const) {
+    assert.equal(courseEditorOpen(false, view), false)
+  }
+  assert.equal(courseEditorControl(false), false)
+  assert.equal(courseEditorControl(true), true)
+  assert.equal(courseEditorOpen(true, "list"), false)
+  assert.equal(courseEditorOpen(true, "train"), false)
+  assert.equal(courseEditorOpen(true, "edit"), true)
 })

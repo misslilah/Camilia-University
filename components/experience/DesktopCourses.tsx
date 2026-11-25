@@ -5,7 +5,7 @@ import { CourseEditor } from "@/components/experience/CourseEditor"
 import { CourseStatus } from "@/components/experience/course-chrome"
 import { ObedienceTraining } from "@/components/experience/ObedienceTraining"
 import { COPIES, LINES, loadObedience, saveObedience } from "@/lib/obedience"
-import { obedienceTrainingOffered } from "@/lib/obedience-course"
+import { courseEditorControl, courseEditorOpen, obedienceTrainingOffered } from "@/lib/obedience-course"
 import { usePatreonAdmin } from "@/lib/patreon"
 
 function subscribeObedience(listener: () => void) {
@@ -56,7 +56,7 @@ export function DesktopCourses({ name }: { name: string }) {
   }, [])
 
   useEffect(() => {
-    if (!offered || (!admin && view === "edit")) setView("list")
+    if (!offered || (view === "edit" && !courseEditorControl(admin))) setView("list")
   }, [admin, offered, view])
 
   if (!checked) return <CourseStatus title="Opening courses…" />
@@ -72,7 +72,7 @@ export function DesktopCourses({ name }: { name: string }) {
     )
   }
 
-  if (view === "edit" && admin) return <CourseEditor onBack={() => setView("list")} />
+  if (courseEditorOpen(admin, view)) return <CourseEditor onBack={() => setView("list")} />
   if (view === "train") return <ObedienceTraining onBack={() => setView("list")} />
 
   return (
@@ -91,7 +91,7 @@ export function DesktopCourses({ name }: { name: string }) {
           <span className="mt-1 block text-sm text-[#8a6238]">Write each line exactly.</span>
         </button>
       </div>
-      {admin && (
+      {courseEditorControl(admin) && (
         <button type="button" onClick={() => setView("edit")} className="mt-4 text-sm text-[#8a6238] underline underline-offset-2">
           Edit course
         </button>

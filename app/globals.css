@@ -408,25 +408,35 @@ html[data-vision-blur] [data-experience] {
   filter: blur(2.75px);
 }
 
+html[data-vision-sway] [data-experience] {
+  transform-origin: 50% 46%;
+  animation: vision-drift 16s ease-in-out infinite;
+}
+
 .vision-wash {
   position: fixed;
   z-index: 90;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  background: rgba(214, 92, 132, 0.2);
+  background: rgba(214, 92, 132, 0.16);
+  transform-origin: 50% 46%;
   animation: vision-arrive 700ms ease both;
 }
 
 .vision-wash::before {
   content: "";
   position: absolute;
-  inset: -12%;
+  inset: -14%;
   background:
-    radial-gradient(ellipse at 32% 28%, rgba(255, 186, 204, 0.4), transparent 54%),
-    radial-gradient(ellipse at 74% 70%, rgba(196, 72, 118, 0.34), transparent 50%),
-    linear-gradient(120deg, rgba(232, 140, 168, 0.14), rgba(176, 96, 186, 0.1) 52%, rgba(230, 168, 148, 0.12));
-  animation: vision-sway 8s ease-in-out infinite;
+    radial-gradient(ellipse at 32% 28%, rgba(255, 186, 204, 0.32), transparent 54%),
+    radial-gradient(ellipse at 74% 70%, rgba(196, 72, 118, 0.27), transparent 50%),
+    linear-gradient(120deg, rgba(232, 140, 168, 0.11), rgba(176, 96, 186, 0.08) 52%, rgba(230, 168, 148, 0.1));
+}
+
+html[data-vision-sway] .vision-wash {
+  transform-origin: 50% 46%;
+  animation: vision-arrive 700ms ease both, vision-drift 16s ease-in-out infinite;
 }
 
 @keyframes vision-arrive {
@@ -434,9 +444,11 @@ html[data-vision-blur] [data-experience] {
   to { opacity: 1; }
 }
 
-@keyframes vision-sway {
-  0%, 100% { transform: translate3d(-1.6%, 0.5%, 0) rotate(-0.45deg); }
-  50% { transform: translate3d(1.8%, -1.2%, 0) rotate(0.4deg); }
+@keyframes vision-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1.036); }
+  30% { transform: translate3d(1.05%, -0.62%, 0) rotate(0.42deg) scale(1.044); }
+  58% { transform: translate3d(-0.48%, 0.72%, 0) rotate(-0.16deg) scale(1.032); }
+  80% { transform: translate3d(-1.1%, -0.32%, 0) rotate(-0.46deg) scale(1.04); }
 }
 
 .vision-pulse {
@@ -484,6 +496,12 @@ html[data-vision-blur] [data-experience] {
 
   html[data-vision-blur] [data-experience] {
     filter: blur(1px);
+  }
+
+  html[data-vision-sway] [data-experience],
+  html[data-vision-sway] .vision-wash {
+    animation-name: none !important;
+    transform: matrix(1, 0, 0, 1, 0, 0) !important;
   }
 
   .vision-wash {
