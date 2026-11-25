@@ -132,9 +132,58 @@ export function sniffBeats(seconds: number, reduced: boolean): { phase: SniffPha
   ]
 }
 
-export function floatingPraise(completed: number) {
-  const count = Math.min(PRAISE.length, Math.max(0, Math.floor(Number.isFinite(completed) ? completed : 0)))
-  return PRAISE.slice(0, count)
+export const PRAISE_MS = 5000
+
+export function praiseLine(successIndex: number) {
+  const count = Math.floor(Number.isFinite(successIndex) ? successIndex : 0)
+  const safe = count > 0 ? count : 0
+  return PRAISE[safe % PRAISE.length] ?? PRAISE[0]
+}
+
+function unitRoll(random: () => number) {
+  const value = random()
+  if (!Number.isFinite(value) || value <= 0) return 0
+  if (value >= 1) return 1
+  return value
+}
+
+export function praiseSpot(random: () => number = Math.random) {
+  const where = unitRoll(random)
+  const x = 30 + unitRoll(random) * 40
+  const across = unitRoll(random)
+  const drift = unitRoll(random)
+  const lift = unitRoll(random)
+  const y = where < 0.5 ? 4 + across * 4 : 93 + across * 4
+  return {
+    x,
+    y,
+    driftX: Math.round((drift - 0.5) * 40),
+    driftY: Math.round(-12 - lift * 28),
+  }
+}
+
+function shuffledIndexes(length: number, random: () => number) {
+  const order = Array.from({ length }, (_, index) => index)
+  for (let index = length - 1; index > 0; index -= 1) {
+    const roll = random()
+    const span = index + 1
+    const swap = Number.isFinite(roll) ? Math.min(index, Math.max(0, Math.floor(roll * span))) : 0
+    const current = order[index] ?? index
+    order[index] = order[swap] ?? swap
+    order[swap] = current
+  }
+  return order
+}
+
+// Draw the next line from the phrases still unused in this pass. An empty
+// bag reshuffles the creator's list. One phrase is drawn again.
+export function takeWritingLine(length: number, pending: readonly number[], random: () => number = Math.random) {
+  const count = Number.isInteger(length) && length > 0 ? length : 0
+  if (count === 0) return { index: 0, pending: [] as number[] }
+  const bag = pending.length > 0 ? [...pending] : shuffledIndexes(count, random)
+  const picked = bag.shift()
+  const index = typeof picked === "number" && picked >= 0 && picked < count ? picked : 0
+  return { index, pending: bag }
 }
 
 // About one correct line in four. The first three successes stay quiet.

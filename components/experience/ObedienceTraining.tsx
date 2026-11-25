@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react"
 import { createPortal } from "react-dom"
 import { CourseChrome, CourseStatus, courseButton } from "@/components/experience/course-chrome"
 import { usePlayableCourse } from "@/components/experience/use-playable-course"
 import type { PlayableCourse } from "@/lib/course-client"
 import { loadBottle, subscribeBottle } from "@/lib/nightstand"
 import { handTyped, letterMarks, lineReady } from "@/lib/obedience"
-import { floatingPraise, praiseClip, sniffBeats, sniffProgress, type SniffPhase } from "@/lib/obedience-course"
+import { PRAISE_MS, praiseClip, praiseLine, praiseSpot, sniffBeats, sniffProgress, takeWritingLine, type SniffPhase } from "@/lib/obedience-course"
 import { sound } from "@/lib/sound"
 
 function subscribeReduced(listener: () => void) {
@@ -243,24 +243,45 @@ function Cinema({
   )
 }
 
+type PraiseFloat = {
+  id: number
+  text: string
+  x: number
+  y: number
+  driftX: number
+  driftY: number
+}
+
 function WriterScreen({ playable, dizzy, onBack }: { playable: PlayableCourse; dizzy: boolean; onBack: () => void }) {
+  const reduced = useReducedMotion()
   const course = playable.course
-  const [index, setIndex] = useState(0)
-  const [finished, setFinished] = useState(false)
+  const [pass, setPass] = useState(() => takeWritingLine(course.lines.length, []))
+  const [round, setRound] = useState(0)
+  const [completed, setCompleted] = useState(0)
+  const [praise, setPraise] = useState<PraiseFloat[]>([])
   const [shimmer, setShimmer] = useState(0)
   const [hold, setHold] = useState(false)
   const holdTimer = useRef(0)
-  const line = course.lines[index] ?? course.lines[0]
+  const praiseTimers = useRef<number[]>([])
+  const praiseSerial = useRef(0)
+  const line = course.lines[pass.index] ?? course.lines[0]
+  const place = Math.max(1, course.lines.length - pass.pending.length)
   const praiseUrls = course.praise.flatMap((clip) => {
     const url = playable.audio[clip.id]
     return url ? [url] : []
   })
   const trackUrl = course.track ? playable.audio[course.track.id] ?? null : null
 
-  useEffect(() => () => window.clearTimeout(holdTimer.current), [])
+  useEffect(
+    () => () => {
+      window.clearTimeout(holdTimer.current)
+      for (const timer of praiseTimers.current) window.clearTimeout(timer)
+    },
+    [],
+  )
 
   useEffect(() => {
-    if (finished || !trackUrl) return
+    if (!trackUrl) return
     const bed = new Audio(trackUrl)
     bed.loop = true
     bed.volume = 0.5
@@ -269,12 +290,12 @@ function WriterScreen({ playable, dizzy, onBack }: { playable: PlayableCourse; d
       bed.pause()
       bed.src = ""
     }
-  }, [finished, trackUrl])
+  }, [trackUrl])
 
   function accept() {
     sound.bell()
     setShimmer((value) => value + 1)
-    const cue = praiseClip(index, praiseUrls.length)
+    const cue = praiseClip(completed, praiseUrls.length)
     if (cue != null) {
       const clip = new Audio(praiseUrls[cue])
       void clip.play().catch(() => {})
@@ -282,24 +303,27 @@ function WriterScreen({ playable, dizzy, onBack }: { playable: PlayableCourse; d
       window.clearTimeout(holdTimer.current)
       holdTimer.current = window.setTimeout(() => setHold(false), 1400)
     }
-    if (index + 1 >= course.lines.length) {
-      setFinished(true)
-      return
-    }
-    setIndex((value) => value + 1)
+    const id = praiseSerial.current + 1
+    praiseSerial.current = id
+    const spot = praiseSpot()
+    setPraise((items) => [...items, { id, text: praiseLine(completed), ...spot }])
+    const timer = window.setTimeout(() => {
+      setPraise((items) => items.filter((item) => item.id !== id))
+      praiseTimers.current = praiseTimers.current.filter((item) => item !== timer)
+    }, PRAISE_MS)
+    praiseTimers.current.push(timer)
+    setCompleted((value) => value + 1)
+    setRound((value) => value + 1)
+    setPass((current) => takeWritingLine(course.lines.length, current.pending))
   }
 
-  if (finished || !line) {
+  if (!line) {
     return (
       <CourseChrome title="Obedience Training" onBack={onBack}>
         <div className="grid h-full place-items-center px-6 text-center">
-          <div>
-            <p className="font-serif text-5xl tracking-wide text-[#6d2c3a]">GOOD GIRL</p>
-            <p className="mt-3 text-sm text-[#4a3424]">The page accepts these lines.</p>
-            <button type="button" className={`${courseButton()} mt-6`} onClick={onBack}>
-              Back to courses
-            </button>
-          </div>
+          <button type="button" className={courseButton()} onClick={onBack}>
+            Back to courses
+          </button>
         </div>
       </CourseChrome>
     )
@@ -308,7 +332,8 @@ function WriterScreen({ playable, dizzy, onBack }: { playable: PlayableCourse; d
   return (
     <>
       <VisionWash pulse={shimmer} />
-      <div className="relative flex h-full min-h-0 flex-col bg-[#f6f1e6] text-[#2a1c14]" inert={dizzy}>
+      <PagePraise items={praise} reduced={reduced} />
+      <div className="relative flex h-full min-h-0 flex-col bg-[#f6f1e6] text-[#2a1c14]" inert={dizzy} data-obedience-line={line.id} data-obedience-line-index={pass.index}>
         <div className="flex shrink-0 items-center gap-2 border-b border-[#e7d3b0] px-3 py-2">
           <button type="button" onClick={onBack} aria-label="Back" className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#6d2c3a] hover:bg-[#6d2c3a]/10">
             <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
@@ -317,26 +342,57 @@ function WriterScreen({ playable, dizzy, onBack }: { playable: PlayableCourse; d
           </button>
           <p className="truncate font-serif text-lg">Obedience Training</p>
           <span className="ml-auto text-[11px] text-[#8a6238]">
-            {index + 1} / {course.lines.length}
+            {place} / {course.lines.length}
           </span>
         </div>
         <div className="grid min-h-0 flex-1 place-items-center overflow-auto px-4 py-4 text-center">
-          <Prompt line={line.text} url={line.audioId ? playable.audio[line.audioId] ?? null : null} hold={hold || dizzy} active={!dizzy} />
+          <Prompt key={round} line={line.text} url={line.audioId ? (playable.audio[line.audioId] ?? null) : null} hold={hold || dizzy} active={!dizzy} />
         </div>
-        <div className="flex shrink-0 flex-wrap justify-center gap-x-3 gap-y-1 px-4 pb-2">
-          {floatingPraise(index).map((phrase, phraseIndex) => (
-            <span
-              key={phrase}
-              className="praise-float pointer-events-none max-w-[9rem] text-center font-serif text-[11px] leading-tight tracking-wide text-[#6d2c3a] sm:text-xs"
-              style={{ animationDelay: `${phraseIndex * 180}ms` }}
-            >
-              {phrase}
-            </span>
-          ))}
-        </div>
-        <LineWriter key={line.id} target={line.text} ready={!dizzy} onAccept={accept} />
+        <LineWriter key={`${line.id}-${round}`} target={line.text} ready={!dizzy} onAccept={accept} />
       </div>
     </>
+  )
+}
+
+function PagePraise({ items, reduced }: { items: PraiseFloat[]; reduced: boolean }) {
+  if (items.length === 0 || typeof document === "undefined") return null
+  // The 3D view composites above fixed layers on the document. The words have to
+  // sit in the room itself, above the monitor, so they can cross the whole page.
+  const host = document.querySelector("[data-experience]") ?? document.body
+  return createPortal(
+    <div
+      data-obedience-praise-layer=""
+      className="pointer-events-none"
+      style={{ position: "absolute", inset: 0, zIndex: 70, pointerEvents: "none" }}
+    >
+      {items.map((item) => (
+        <p
+          key={item.id}
+          role="status"
+          data-obedience-praise={item.text}
+          className={reduced ? "page-praise" : "page-praise page-praise-drift"}
+          style={
+            {
+              position: "absolute",
+              left: `${item.x}%`,
+              top: `${item.y}%`,
+              whiteSpace: "nowrap",
+              animationDuration: `${PRAISE_MS}ms`,
+              background: "rgba(255, 248, 250, 0.94)",
+              color: "#6d2c3a",
+              borderRadius: "999px",
+              padding: "0.38rem 0.9rem",
+              boxShadow: "0 0 0 1px rgba(109, 44, 58, 0.14), 0 12px 28px rgba(40, 16, 24, 0.22)",
+              "--drift-x": `${item.driftX}px`,
+              "--drift-y": `${item.driftY}px`,
+            } as CSSProperties
+          }
+        >
+          {item.text}
+        </p>
+      ))}
+    </div>,
+    host,
   )
 }
 

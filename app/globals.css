@@ -467,6 +467,39 @@ html[data-vision-sway] .vision-wash {
   100% { opacity: 0; }
 }
 
+.page-praise {
+  position: absolute;
+  z-index: 1;
+  margin: 0;
+  max-width: min(26rem, 52vw);
+  pointer-events: none;
+  text-align: center;
+  color: #6d2c3a;
+  background: rgba(255, 248, 250, 0.94);
+  border-radius: 999px;
+  padding: 0.38rem 0.9rem;
+  box-shadow:
+    0 0 0 1px rgba(109, 44, 58, 0.14),
+    0 12px 28px rgba(40, 16, 24, 0.22);
+  font-family: var(--font-serif), "Times New Roman", serif;
+  font-size: clamp(1.25rem, 2.7vw, 2rem);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+}
+
+.page-praise-drift {
+  animation: page-praise-drift 5s ease-in-out forwards;
+}
+
+@keyframes page-praise-drift {
+  0% { opacity: 1; transform: translate(-50%, -50%) translate3d(0, 8px, 0); }
+  82% { opacity: 1; transform: translate(-50%, -50%) translate3d(calc(var(--drift-x) * 0.82), calc(var(--drift-y) * 0.82), 0); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translate3d(var(--drift-x), var(--drift-y), 0); }
+}
+
 .praise-float {
   animation: praise-float 3.2s ease-in-out infinite;
 }
@@ -487,6 +520,7 @@ html[data-vision-sway] .vision-wash {
   .sniff-pulse,
   .good-girl-flash,
   .praise-float,
+  .page-praise-drift,
   .sniff-cap,
   .sniff-rig,
   .sniff-desk {

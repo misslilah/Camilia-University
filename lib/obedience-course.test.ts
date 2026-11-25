@@ -10,13 +10,16 @@ import {
   courseEditorControl,
   courseEditorOpen,
   defaultCourse,
-  floatingPraise,
   obedienceTrainingOffered,
   parseCourse,
+  PRAISE_MS,
   praiseClip,
   praiseCue,
+  praiseLine,
+  praiseSpot,
   sniffBeats,
   sniffProgress,
+  takeWritingLine,
 } from "./obedience-course.ts"
 
 test("the built-in lesson is playable before any upload", () => {
@@ -73,11 +76,17 @@ test("a saved course keeps the sniff time and drops anything that is not the les
   assert.equal(clampSniff(999), 180)
 })
 
-test("praise grows with each finished line and a clip is only occasional", () => {
-  assert.deepEqual(floatingPraise(0), [])
-  assert.deepEqual(floatingPraise(1), ["GOOD GIRL"])
-  assert.equal(floatingPraise(2)[1], "SUCH AN OBEDIENT STUDENT")
-  assert.equal(floatingPraise(9).length, PRAISE.length)
+test("a correct line raises one praise phrase for five seconds, and a clip is only occasional", () => {
+  assert.equal(praiseLine(0), "GOOD GIRL")
+  assert.equal(praiseLine(1), "SUCH AN OBEDIENT STUDENT")
+  assert.equal(praiseLine(PRAISE.length), "GOOD GIRL")
+  assert.equal(PRAISE_MS, 5000)
+  const near = praiseSpot(() => 0)
+  const far = praiseSpot(() => 1)
+  assert.deepEqual(near, { x: 30, y: 4, driftX: -20, driftY: -12 })
+  assert.deepEqual(far, { x: 70, y: 97, driftX: 20, driftY: -40 })
+  assert.equal(praiseSpot(() => 0.5).y, 95)
+  assert.equal(praiseSpot(() => 0.5).x, 50)
   const hits = Array.from({ length: 20 }, (_, index) => praiseCue(index)).filter(Boolean)
   assert.equal(hits.length, 5)
   assert.equal(praiseCue(0), false)
@@ -135,6 +144,28 @@ test("one track can ride along for the whole course", () => {
     track: { id: trackId, name: "same.mp3" },
   })
   assert.deepEqual(shared ? courseAudioIds(shared) : [], [trackId])
+})
+
+test("the next line is a remaining phrase, then the list is reshuffled", () => {
+  const pending = [2, 0]
+  assert.deepEqual(takeWritingLine(3, pending), { index: 2, pending: [0] })
+  assert.deepEqual(pending, [2, 0])
+  assert.deepEqual(takeWritingLine(3, [0]), { index: 0, pending: [] })
+
+  let bag: number[] = []
+  const drawn: number[] = []
+  for (let step = 0; step < 6; step += 1) {
+    const next = takeWritingLine(3, bag, () => 0.5)
+    drawn.push(next.index)
+    bag = next.pending
+  }
+  assert.deepEqual(drawn, [0, 2, 1, 0, 2, 1])
+  assert.notEqual(drawn[1], drawn[0] + 1)
+  assert.deepEqual(new Set(drawn.slice(0, 3)), new Set([0, 1, 2]))
+
+  assert.deepEqual(takeWritingLine(1, []), { index: 0, pending: [] })
+  assert.deepEqual(takeWritingLine(1, []), { index: 0, pending: [] })
+  assert.deepEqual(takeWritingLine(0, [1]), { index: 0, pending: [] })
 })
 
 test("edit course stays with the creator", () => {
