@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { createPortal } from "react-dom"
 import { CourseChrome, CourseStatus, courseButton } from "@/components/experience/course-chrome"
 import { usePlayableCourse } from "@/components/experience/use-playable-course"
 import type { PlayableCourse } from "@/lib/course-client"
@@ -263,35 +264,53 @@ function WriterScreen({ playable, dizzy, onBack }: { playable: PlayableCourse; d
   }
 
   return (
-    <div className={dizzy ? "course-dizzy relative flex h-full min-h-0 flex-col bg-[#f6f1e6] text-[#2a1c14]" : "relative flex h-full min-h-0 flex-col bg-[#f6f1e6] text-[#2a1c14]"} inert={dizzy}>
-      {shimmer > 0 && <div key={shimmer} className="course-shimmer pointer-events-none absolute inset-0" />}
-      <div className="flex shrink-0 items-center gap-2 border-b border-[#e7d3b0] px-3 py-2">
-        <button type="button" onClick={onBack} aria-label="Back" className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#6d2c3a] hover:bg-[#6d2c3a]/10">
-          <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
-            <path d="M15 5 L8 12 L15 19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        <p className="truncate font-serif text-lg">Obedience Training</p>
-        <span className="ml-auto text-[11px] text-[#8a6238]">
-          {index + 1} / {course.lines.length}
-        </span>
-      </div>
-      <div className="grid min-h-0 flex-1 place-items-center overflow-auto px-4 py-4 text-center">
-        <Prompt line={line.text} url={line.audioId ? playable.audio[line.audioId] ?? null : null} hold={hold || dizzy} active={!dizzy} />
-      </div>
-      <div className="flex shrink-0 flex-wrap justify-center gap-x-3 gap-y-1 px-4 pb-2">
-        {floatingPraise(index).map((phrase, phraseIndex) => (
-          <span
-            key={phrase}
-            className="praise-float pointer-events-none max-w-[9rem] text-center font-serif text-[11px] leading-tight tracking-wide text-[#6d2c3a] sm:text-xs"
-            style={{ animationDelay: `${phraseIndex * 180}ms` }}
-          >
-            {phrase}
+    <>
+      <VisionWash pulse={shimmer} />
+      <div className="relative flex h-full min-h-0 flex-col bg-[#f6f1e6] text-[#2a1c14]" inert={dizzy}>
+        <div className="flex shrink-0 items-center gap-2 border-b border-[#e7d3b0] px-3 py-2">
+          <button type="button" onClick={onBack} aria-label="Back" className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[#6d2c3a] hover:bg-[#6d2c3a]/10">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
+              <path d="M15 5 L8 12 L15 19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <p className="truncate font-serif text-lg">Obedience Training</p>
+          <span className="ml-auto text-[11px] text-[#8a6238]">
+            {index + 1} / {course.lines.length}
           </span>
-        ))}
+        </div>
+        <div className="grid min-h-0 flex-1 place-items-center overflow-auto px-4 py-4 text-center">
+          <Prompt line={line.text} url={line.audioId ? playable.audio[line.audioId] ?? null : null} hold={hold || dizzy} active={!dizzy} />
+        </div>
+        <div className="flex shrink-0 flex-wrap justify-center gap-x-3 gap-y-1 px-4 pb-2">
+          {floatingPraise(index).map((phrase, phraseIndex) => (
+            <span
+              key={phrase}
+              className="praise-float pointer-events-none max-w-[9rem] text-center font-serif text-[11px] leading-tight tracking-wide text-[#6d2c3a] sm:text-xs"
+              style={{ animationDelay: `${phraseIndex * 180}ms` }}
+            >
+              {phrase}
+            </span>
+          ))}
+        </div>
+        <LineWriter key={line.id} target={line.text} ready={!dizzy} onAccept={accept} />
       </div>
-      <LineWriter key={line.id} target={line.text} ready={!dizzy} onAccept={accept} />
-    </div>
+    </>
+  )
+}
+
+function VisionWash({ pulse }: { pulse: number }) {
+  useEffect(() => {
+    document.documentElement.dataset.visionBlur = "on"
+    return () => {
+      delete document.documentElement.dataset.visionBlur
+    }
+  }, [])
+  if (typeof document === "undefined") return null
+  return createPortal(
+    <div className="vision-wash" data-obedience-vision="" aria-hidden>
+      {pulse > 0 ? <div key={pulse} className="vision-pulse" data-obedience-vision-pulse="" /> : null}
+    </div>,
+    document.body,
   )
 }
 

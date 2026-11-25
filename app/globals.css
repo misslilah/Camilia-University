@@ -338,25 +338,55 @@
   100% { opacity: 0; }
 }
 
-.course-shimmer {
-  background: linear-gradient(120deg, rgba(231, 160, 176, 0.28), rgba(230, 211, 161, 0.34), rgba(168, 140, 214, 0.3));
-  animation: course-shimmer 900ms ease forwards;
+html[data-vision-blur] [data-experience] {
+  filter: blur(2.75px);
 }
 
-@keyframes course-shimmer {
+.vision-wash {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: rgba(214, 92, 132, 0.2);
+  animation: vision-arrive 700ms ease both;
+}
+
+.vision-wash::before {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  background:
+    radial-gradient(ellipse at 32% 28%, rgba(255, 186, 204, 0.4), transparent 54%),
+    radial-gradient(ellipse at 74% 70%, rgba(196, 72, 118, 0.34), transparent 50%),
+    linear-gradient(120deg, rgba(232, 140, 168, 0.14), rgba(176, 96, 186, 0.1) 52%, rgba(230, 168, 148, 0.12));
+  animation: vision-sway 8s ease-in-out infinite;
+}
+
+@keyframes vision-arrive {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes vision-sway {
+  0%, 100% { transform: translate3d(-1.6%, 0.5%, 0) rotate(-0.45deg); }
+  50% { transform: translate3d(1.8%, -1.2%, 0) rotate(0.4deg); }
+}
+
+.vision-pulse {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at 50% 46%, rgba(255, 168, 190, 0.48), rgba(214, 86, 128, 0.26) 62%, rgba(160, 60, 100, 0.08));
+  animation: vision-pulse 900ms ease forwards;
+}
+
+@keyframes vision-pulse {
   0% { opacity: 0; }
-  30% { opacity: 1; }
+  22% { opacity: 1; }
   100% { opacity: 0; }
-}
-
-.course-dizzy {
-  animation: course-dizzy 1100ms ease-in-out;
-}
-
-@keyframes course-dizzy {
-  0% { transform: none; filter: none; }
-  40% { transform: translate3d(-7px, 1px, 0) rotate(-0.6deg); filter: blur(1.3px); }
-  100% { transform: translate3d(4px, 0, 0) rotate(0.25deg); filter: blur(0.3px); }
 }
 
 .praise-float {
@@ -378,8 +408,6 @@
 @media (prefers-reduced-motion: reduce) {
   .sniff-pulse,
   .good-girl-flash,
-  .course-shimmer,
-  .course-dizzy,
   .praise-float,
   .sniff-hand,
   .sniff-cap,
@@ -387,6 +415,24 @@
   .sniff-desk {
     animation: none;
     transition: none;
+  }
+
+  html[data-vision-blur] [data-experience] {
+    filter: blur(1px);
+  }
+
+  .vision-wash {
+    animation: none;
+    opacity: 1;
+  }
+
+  .vision-wash::before {
+    animation: none;
+    transform: none;
+  }
+
+  .vision-pulse {
+    animation-duration: 480ms;
   }
 }
 

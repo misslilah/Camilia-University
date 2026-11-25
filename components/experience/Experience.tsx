@@ -511,6 +511,7 @@ export default function Experience() {
 
   return (
     <div
+      data-experience
       className="relative h-full w-full touch-none bg-[#140f0c]"
       onPointerMove={look}
       onPointerDown={(event) => {
