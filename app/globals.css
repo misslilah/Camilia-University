@@ -471,13 +471,16 @@ html[data-vision-sway] .vision-wash {
   position: absolute;
   z-index: 1;
   margin: 0;
-  max-width: min(26rem, 52vw);
+  width: max-content;
+  max-width: none;
+  min-width: max-content;
   pointer-events: none;
   text-align: center;
   color: #6d2c3a;
   background: rgba(255, 248, 250, 0.94);
   border-radius: 999px;
-  padding: 0.38rem 0.9rem;
+  /* Horizontal padding clears the semicircular caps, so the phrase stays on the straight fill. */
+  padding: 0.32em calc(0.5lh + 0.6em);
   box-shadow:
     0 0 0 1px rgba(109, 44, 58, 0.14),
     0 12px 28px rgba(40, 16, 24, 0.22);
@@ -487,6 +490,7 @@ html[data-vision-sway] .vision-wash {
   line-height: 1.05;
   letter-spacing: 0.06em;
   white-space: nowrap;
+  overflow: visible;
   transform: translate(-50%, -50%);
 }
 
